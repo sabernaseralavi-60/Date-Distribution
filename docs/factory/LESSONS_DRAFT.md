@@ -1,8 +1,10 @@
 # LESSONS_DRAFT - Production-Ready B2B Date Distribution & Consignment Management Platform
 
-> Write a line here the moment something surprises you (a failure and its fix, a user preference, a tool
-> gap, a rule that was wrong). Do not wait for the end of the session: sessions end abruptly.
-> `webapp-retro` flushes every line into the global ledger (`WAF-` ids) and clears this list.
+> Write a line here the moment something surprises you. `webapp-retro` flushes every line into the global ledger (`WAF-` ids) and clears this list.
 > Format: date | stage | what happened (with evidence) | proposed rule | where it should live
-> (audit rule / standard / skill / spec checklist / project only)
 
+2026-10-31 | intake | The AI Studio output carried a verbatim copy of the owner's master prompt inside `public/assets/aistudio/` (60,508 bytes, `cmp` identical to the root spec): it would be published by the web server. | scan rule PRIV-SPEC-COPY: flag any file in `public/` that is byte-identical (or >90% similar) to a root spec/prompt file; always list `public/` binaries and extensionless files at intake | audit rule (webapp_audit.py) + intake skill
+2026-10-31 | intake | v0 here is a client-only prototype whose "backend" is localStorage plus one Firestore snapshot document; the role "login" is a top-bar switch; a 45-form catalogue hides 8 placeholder forms behind one shared UI. Looks complete on screenshots, but a tamper test (edit localStorage, reload) proves there is no integrity or access control. | at intake classify v0 as prototype / real app by 5 probes (persistence location, auth, server code present, tamper test, form-to-component map); a polished UI alone says nothing about completeness | standard section 3 + intake skill
+2026-10-31 | intake | `npm install` failed again on the esbuild/vite peer conflict (second occurrence after TrafficLab WAF-20261031-05). | scan rule OPS-PEER-ESBUILD: package.json with vite >= 8 and esbuild < 0.27 | audit rule
+2026-10-31 | audit | Reading the money path found "commission on payment.amount when nothing was allocated" and an overdue flag that is never recomputed; neither is visible in the demo because the seed is consistent. | for any ledger app, audit each derived flag (overdue, status, balance) for who writes it; run a hand case of overpayment/advance/partial against each allocation function | audit skill, correctness dimension
+2026-10-31 | tooling | A multi-line bash heredoc that mixed a `printf` with Persian text and backticks failed with an EOF parse error and wrote nothing; the Write tool worked at once (standard section 8 already says this). | none new; re-confirm section 8 (evidenced again) | standard (no edit)

@@ -4,7 +4,7 @@
 > Resume phrase: «کارخانه وب اپ: ادامه» (skill `webapp-factory`).
 
 ## Where we are
-- Stage: **1-intake DONE (2026-10-31)** -> next: 2-audit
+- Stage: **2-audit first pass DONE (2026-10-31)**: 22 findings (6 S1, 12 S2, 4 S3), scorecard before 2/10 -> next: 3-harden (plan below). Second audit pass (documents/print, QR, reports/CSV, visits, returns, remittance, notifications, PWA, a11y) runs during/after hardening.
 - Created: 2026-10-31   Last session: 2026-10-31
 - Depth: **deep**   reason: scan score 8 = auth 2 + money 2 + PII 2 + >5k LOC 1 + >15k LOC 1 (16.5k lines); owner-facing financial ledger and signed legal-ish documents.
 - Baseline: untouched first commit = **a3957d5** ("baseline: builder output (untouched)", 41 files). Builder: Google AI Studio.
@@ -45,7 +45,7 @@
 - Is the real business data going to be entered here (Persian legal wording of custody/consignment documents should be reviewed by a human before real use)? Not blocking.
 
 ## Next steps (ordered, each ends with a verifiable result)
-1. Stage 2 audit: read `engine.ts` invariants against Part 33 formulas and Part 46 acceptance tests; drive the app in a real browser (screens + console) on mobile and desktop; write FINDINGS.md with S1-S3 and the "before" SCORECARD.
+1. (done) Stage 2 first audit pass: FINDINGS.md F-001..F-022, SCORECARD before, VERIFIED.md.
 2. Stage 3 harden: fix install (esbuild), lockfile, CI, `test` script; build server API + Postgres + auth + role scoping; keep the 6 engine tests and add API/authorisation tests (role replay).
 3. Stage 4 verify in browser against the production build; Stage 5 ship only after the owner gives repo/hosting.
 
