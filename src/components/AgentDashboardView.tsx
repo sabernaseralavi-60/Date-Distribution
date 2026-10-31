@@ -276,23 +276,6 @@ export const AgentDashboardView: React.FC<AgentDashboardViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <label className="text-xs font-medium text-stone-600">تغییر بازاریاب (دمو):</label>
-          <select
-            aria-label="انتخاب بازاریاب"
-            value={currentAgent.id}
-            onChange={(e) => {
-              onSelectAgentId(e.target.value);
-              const nextRetailers = state.retailers.filter((r) => r.agentId === e.target.value);
-              if (nextRetailers[0]) setSelectedRetailerId(nextRetailers[0].id);
-            }}
-            className="text-sm bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 font-medium focus:outline-none focus:ring-2 focus:ring-amber-600"
-          >
-            {state.agents.map((ag) => (
-              <option key={ag.id} value={ag.id}>
-                {ag.code} — {ag.fullName} ({formatPersianNumber(ag.commissionRatePercent)}٪)
-              </option>
-            ))}
-          </select>
 
           <button
             type="button"
@@ -953,7 +936,7 @@ export const AgentDashboardView: React.FC<AgentDashboardViewProps> = ({
                     <input
                       type="number"
                       min={1000}
-                      step={50000}
+                      step={1000}
                       value={amountInput}
                       onChange={(e) => setAmountInput(Number(e.target.value))}
                       className="w-full border border-stone-300 rounded-xl px-3 py-2 tabular-nums font-bold"

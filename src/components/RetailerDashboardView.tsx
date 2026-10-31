@@ -177,19 +177,6 @@ export const RetailerDashboardView: React.FC<RetailerDashboardViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <label className="text-xs font-medium text-stone-600">تغییر فروشگاه (دمو):</label>
-          <select
-            aria-label="انتخاب فروشگاه"
-            value={currentRetailer.id}
-            onChange={(e) => onSelectRetailerId(e.target.value)}
-            className="text-sm bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 font-medium focus:outline-none focus:ring-2 focus:ring-amber-600"
-          >
-            {state.retailers.map((rt) => (
-              <option key={rt.id} value={rt.id}>
-                {rt.code} — {rt.storeName} ({rt.district})
-              </option>
-            ))}
-          </select>
         </div>
       </div>
 
@@ -517,7 +504,7 @@ export const RetailerDashboardView: React.FC<RetailerDashboardViewProps> = ({
                     <input
                       type="number"
                       min={10000}
-                      step={50000}
+                      step={1000}
                       value={paymentAmount}
                       onChange={(e) => setPaymentAmount(Number(e.target.value))}
                       className="w-full border border-stone-300 rounded-xl px-3 py-2 tabular-nums font-bold"
