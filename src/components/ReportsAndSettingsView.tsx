@@ -490,7 +490,7 @@ export const ReportsAndSettingsView: React.FC<ReportsAndSettingsViewProps> = ({
             </div>
             <div>
               <label className="block font-bold text-stone-700 mb-1">
-                درصد حاشیه سود فروشگاه (٪):
+                درصد افزوده روی قیمت تسویه (٪؛ عدد ۲۵ = سهم ۲۰٪ فروشگاه از قیمت مصرف‌کننده):
               </label>
               <input
                 type="number"

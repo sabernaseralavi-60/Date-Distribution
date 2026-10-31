@@ -273,13 +273,13 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
             ) : (
               <div className="rounded-lg border border-stone-300 p-4 bg-stone-50/60">
                 <div className="text-xs font-bold text-stone-500 mb-2">
-                  مشخصات مبدأ / انبار مرکزی
+                  {doc.documentType === 'remittance_receipt' ? 'مشخصات دریافت‌کننده (مدیریت)' : 'مشخصات مبدأ / انبار مرکزی'}
                 </div>
                 <div className="space-y-1 text-xs">
                   <div>
-                    <span className="text-stone-500">واحد تحویل‌دهنده: </span>
+                    <span className="text-stone-500">{doc.documentType === 'remittance_receipt' ? 'واحد دریافت‌کننده: ' : 'واحد تحویل‌دهنده: '}</span>
                     <span className="font-bold text-stone-900">
-                      انبار مرکزی {state.settings.businessName}
+                      {doc.documentType === 'remittance_receipt' ? 'مدیریت' : 'انبار مرکزی'} {state.settings.businessName}
                     </span>
                   </div>
                   <div>
@@ -297,6 +297,21 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
             )}
           </div>
 
+          {/* Money document body (bank slip, cash collection receipt, remittance receipt) */}
+          {(doc.documentType === 'payment_receipt' || doc.documentType === 'remittance_receipt') && (
+            <div className="my-6 rounded-lg border border-stone-300 overflow-hidden">
+              <table className="w-full text-right text-xs border-collapse">
+                <tbody>
+                  <tr className="border-b border-stone-200"><td className="py-3 px-3 bg-stone-50 font-bold w-1/3">نوع سند</td><td className="py-3 px-3">{doc.documentType === 'payment_receipt' ? (doc.title.includes('فرم ۷') ? 'رسید دریافت وجه نقد توسط بازاریاب' : 'فیش / رسید بانکی واریز فروشگاه') : 'تحویل وجوه وصول‌شدهٔ بازاریاب به مدیریت'}</td></tr>
+                  <tr className="border-b border-stone-200"><td className="py-3 px-3 bg-stone-50 font-bold">مبلغ</td><td className="py-3 px-3 font-extrabold tabular-nums">{formatToman(doc.totalReferenceValue)}</td></tr>
+                  <tr><td className="py-3 px-3 bg-stone-50 font-bold">توضیح</td><td className="py-3 px-3">{doc.notes || '—'}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {!(doc.documentType === 'payment_receipt' || doc.documentType === 'remittance_receipt') && (
+            <>
           {/* Product Items Table */}
           <div className="overflow-x-auto border border-stone-300 rounded-lg my-6">
             <table className="w-full text-right text-xs border-collapse">
@@ -345,7 +360,9 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
                     <>
                       <td className="py-3 px-3 border-l border-stone-200 tabular-nums">
                         {formatNumberFa(
-                          doc.retailerMarkupPercent ?? product.retailerMarkupPercent
+                          doc.suggestedRetailPrice
+                            ? Math.round(((doc.suggestedRetailPrice - doc.unitReferencePrice) / doc.suggestedRetailPrice) * 100)
+                            : doc.retailerMarkupPercent ?? product.retailerMarkupPercent
                         )}
                         ٪
                       </td>
@@ -388,6 +405,9 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
             </div>
           </div>
 
+            </>
+          )}
+
           {/* Mandatory Legal Declaration */}
           <div className="rounded-lg border border-stone-300 p-4 bg-[#FAF8F5] mb-6">
             <div className="text-xs font-bold text-stone-800 mb-1.5">
@@ -402,8 +422,10 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
             <div className="rounded-lg border border-dashed border-stone-400 p-4 min-h-[120px] flex flex-col justify-between">
               <div className="text-xs font-bold text-stone-700">
-                {doc.documentType === 'retailer_delivery'
+                {doc.documentType === 'retailer_delivery' || doc.documentType === 'payment_receipt'
                   ? '۱. مهر و امضای مالک / نماینده مجاز فروشگاه'
+                  : doc.documentType === 'remittance_receipt'
+                  ? '۱. نام و امضای دریافت‌کنندهٔ مدیریت'
                   : '۱. نام و امضای تحویل‌دهنده (انباردار)'}
               </div>
               <div className="text-xs text-stone-600 mt-4">

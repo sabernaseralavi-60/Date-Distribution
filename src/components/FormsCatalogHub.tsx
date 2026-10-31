@@ -160,7 +160,7 @@ export const FormsCatalogHub: React.FC<FormsCatalogHubProps> = ({
   // Form 9 & 10: Supplier Receipt
   const [supProductId, setSupProductId] = useState(state.products[0]?.id ?? '');
   const [supQty, setSupQty] = useState(25);
-  const [supName, setSupName] = useState('نخلستان نمونه حاجی‌آباد هرمزگان');
+  const [supName, setSupName] = useState('نخلستان نمونه بم');
 
   // Form 11..16: Deliveries & Returns
   const [delivAgentId, setDelivAgentId] = useState(state.agents[0]?.id ?? 'ag-1');
@@ -471,7 +471,7 @@ export const FormsCatalogHub: React.FC<FormsCatalogHubProps> = ({
                 </div>
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
-                    درصد حاشیه سود سوپرمارکت (٪) — قیمت پیشنهادی:{' '}
+                    درصد افزوده روی قیمت تسویه (٪؛ عدد ۲۵ = سهم ۲۰٪ فروشگاه از قیمت مصرف‌کننده) — قیمت پیشنهادی:{' '}
                     {formatToman(calculateSuggestedRetailPrice(prodBasePrice, prodMarkup))}
                   </label>
                   <input
@@ -615,7 +615,7 @@ export const FormsCatalogHub: React.FC<FormsCatalogHubProps> = ({
                 </div>
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
-                    درصد حاشیه سود سوپرمارکت (٪)
+                    درصد افزوده روی قیمت تسویه (٪؛ عدد ۲۵ = سهم ۲۰٪ فروشگاه از قیمت مصرف‌کننده)
                   </label>
                   <input
                     type="number"

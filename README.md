@@ -10,6 +10,24 @@ with a packaging QR landing page.
 > tables of the prompt. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (limitations) and [docs/factory/VERIFIED.md](docs/factory/VERIFIED.md)
 > (what has actually been tested and what has not).
 
+## Prices (owner decision, 2026-10-31)
+Piarom dates from **Bam**, 600 g box: consumer price **700,000 Toman** (also the online price). The supermarket keeps **20%** (140,000) and settles
+at 560,000; the distribution agent earns **5% of the consumer price per box whose settlement was collected** (35,000; rule method
+`consumer_price_percent_settled`); the owner's net is 75% (525,000). Cost price is not entered (0 = unknown): the owner enters it in form 3.
+
+## Signed forms and scans (who uploads what)
+Every handover that needs signatures produces a numbered, printable A4 document and a place to upload the scanned signed copy (JPG/PNG/WebP/PDF, <= 3 MB,
+stored privately with SHA-256 and version):
+| Interaction | Document | Uploaded by | Verified by |
+|---|---|---|---|
+| administrator -> agent goods | agent delivery receipt (AG-...) | administrator or agent | administrator, then custody moves |
+| agent -> store goods | store delivery receipt (RT-...) | agent or store | administrator, then custody moves |
+| returns (agent -> warehouse, store -> agent/warehouse) | return receipts (AR-/RR-...) | agent / store | administrator |
+| store bank transfer | bank slip document (RCP-..., form 6) | store or agent | administrator (slip optional) |
+| cash handed to an agent | cash receipt signed by store and agent (RCP-..., form 7) | agent or store | administrator: payment cannot be verified without the signed scan |
+| agent -> administrator money | remittance receipt (RMD-..., form 8) | agent | administrator: remittance cannot be verified without the slip/signed scan |
+Not yet covered: damage/discrepancy photos, visit photos and the store's signed cooperation agreement (the prompt lists them as optional attachments).
+
 ## What is in it
 * **Roles (enforced on the server):** administrator, sales agent, store (supermarket); customers shop without an account.
 * **Ledger engine** (`src/core/engine.ts`): products and pricing snapshots, immutable stock movements with custody locations, signed
@@ -31,8 +49,8 @@ npm start                   # http://localhost:3000  (embedded database in ./dat
 ```
 Demo logins when `SEED_DEMO=true`: administrator = `ADMIN_USERNAME`/`ADMIN_PASSWORD`; agents `agent1`..`agent6` and stores `rt01`..`rt12`
 all use `SEED_PASSWORD`. **Never enable the demo on a real business.** The demo reproduces the reconciliation of the prompt
-(200 packages = 30 warehouse + 30 agents + 50 stores + 70 sold through stores + 20 sold online; receivables 14,000,000, collected 10,000,000,
-open 4,000,000 Toman).
+(200 packages = 30 warehouse + 30 agents + 50 stores + 70 sold through stores + 20 sold online; receivables 39,200,000, collected 28,000,000,
+open 11,200,000 Toman at the owner's prices).
 
 ## Test
 ```bash

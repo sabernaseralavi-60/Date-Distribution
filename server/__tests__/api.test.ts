@@ -277,3 +277,45 @@ describe('user administration', () => {
     expect((await store.call('GET', '/api/state')).status).toBe(401);
   });
 });
+
+
+describe('signed forms between agent, store and administrator', () => {
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(300, 9)]);
+  it('cash collected by an agent: receipt document is created for both parties, the signed scan is uploaded by the agent, and only then can the administrator verify', async () => {
+    const admin = await as('admin', ADMIN_PW);
+    const s0 = await admin.state();
+    // RT-03 is locked and RT-05 deactivated by earlier tests
+    const rt = s0.retailers.find((r: any) => !['RT-03', 'RT-05'].includes(r.code) && s0.invoices.some((i: any) => i.retailerId === r.id && i.remainingAmount > 0));
+    const agent = await as('agent' + rt.agentId.replace('ag-', ''));
+    const sub = await agent.act('submitRetailerPayment', { retailerId: rt.id, amount: 100000, method: 'cash_to_agent', referenceNumber: 'CASH-API-1', collectedByAgentDirectly: true });
+    expect(sub.status, JSON.stringify(sub.data)).toBe(200);
+    const pay = (await admin.state()).payments.find((p: any) => p.referenceNumber === 'CASH-API-1');
+    expect(pay.status).toBe('pending');
+    expect(pay.receiptDocumentId).toBeTruthy();
+    // both parties see the document; another store does not
+    expect((await agent.state()).documents.some((d: any) => d.id === pay.receiptDocumentId)).toBe(true);
+    const storeUser = 'rt' + rt.code.slice(3);
+    const store = await as(storeUser);
+    expect((await store.state()).documents.some((d: any) => d.id === pay.receiptDocumentId)).toBe(true);
+    const other = rt.code === 'RT-12' ? 'rt11' : 'rt12';
+    expect((await (await as(other)).state()).documents.some((d: any) => d.id === pay.receiptDocumentId)).toBe(false);
+    // without the signed scan the administrator cannot verify
+    const early = await admin.act('verifyRetailerPayment', { paymentId: pay.id });
+    expect(early.status).toBe(422);
+    const up = await agent.call('POST', `/api/documents/${pay.receiptDocumentId}/attachments`, { filename: 'signed.png', dataBase64: png.toString('base64') });
+    expect(up.status, JSON.stringify(up.data)).toBe(200);
+    expect((await admin.act('verifyRetailerPayment', { paymentId: pay.id })).status).toBe(200);
+    expect((await admin.act('verifyOfficialDocument', { documentId: pay.receiptDocumentId })).status).toBe(200);
+  });
+  it('agent remittance: pending with its own document; verification needs the bank slip or signed handover scan', async () => {
+    const admin = await as('admin', ADMIN_PW);
+    const agent = await as('agent3');
+    const sub = await agent.act('submitAndVerifyAgentRemittance', { agentId: 'ag-3', remittedAmount: 50000, transferReference: 'REM-API-1' });
+    expect(sub.status, JSON.stringify(sub.data)).toBe(200);
+    const rem = (await admin.state()).agentRemittances.find((r: any) => r.transferReference === 'REM-API-1');
+    expect(rem.status).toBe('pending');
+    expect((await admin.act('verifyAgentRemittance', { remittanceId: rem.id, approve: true })).status).toBe(422);
+    expect((await agent.call('POST', `/api/documents/${rem.documentId}/attachments`, { filename: 'slip.png', dataBase64: png.toString('base64') })).status).toBe(200);
+    expect((await admin.act('verifyAgentRemittance', { remittanceId: rem.id, approve: true })).status).toBe(200);
+  });
+});

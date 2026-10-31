@@ -1,6 +1,6 @@
 import React from 'react';
 import { BadgeCheck } from 'lucide-react';
-import type { SaberCommerceState } from '../core/types.ts';
+import type { OfficialDocument, SaberCommerceState } from '../core/types.ts';
 import { approveCommission, approveRetailer, rejectRetailerPayment, verifyAgentRemittance } from '../core/engineClient.ts';
 import { formatToman } from '../core/formatters.ts';
 
@@ -8,6 +8,7 @@ interface Props {
   state: SaberCommerceState;
   onUpdateState: (next: SaberCommerceState, message?: string) => void;
   onError: (message: string) => void;
+  onOpenDocument: (doc: OfficialDocument) => void;
 }
 
 const btn = 'rounded-lg px-2.5 py-1 text-[11px] font-bold';
@@ -16,7 +17,7 @@ const btn = 'rounded-lg px-2.5 py-1 text-[11px] font-bold';
  * Administrator queue for the decisions the spec reserves to the owner (Parts 10, 19, 21, 27): store approvals, payment rejection,
  * agent cash remittances and commissions waiting for approval. v0 auto-approved all of them.
  */
-export const ApprovalQueue: React.FC<Props> = ({ state, onUpdateState, onError }) => {
+export const ApprovalQueue: React.FC<Props> = ({ state, onUpdateState, onError, onOpenDocument }) => {
   const pendingStores = state.retailers.filter((r) => r.status === 'pending');
   const pendingRemits = state.agentRemittances.filter((r) => r.status === 'pending');
   const pendingComm = state.commissions.filter((c) => c.status === 'pending_verification' || c.status === 'calculated');
@@ -28,6 +29,16 @@ export const ApprovalQueue: React.FC<Props> = ({ state, onUpdateState, onError }
     try { onUpdateState(fn(), msg); } catch (e) { onError(e instanceof Error ? e.message : String(e)); }
   };
   const ask = (q: string) => window.prompt(q)?.trim() || '';
+  /** shows whether the signed scan / bank slip of a money document is already uploaded, and opens it */
+  const docLink = (id?: string) => {
+    const d = id ? state.documents.find((x) => x.id === id) : undefined;
+    if (!d) return null;
+    return (
+      <button type="button" className="underline text-stone-700" onClick={() => onOpenDocument(d)}>
+        {d.documentNumber}: {d.attachments.length > 0 ? 'تصویر امضاشده بارگذاری شده' : 'هنوز تصویر بارگذاری نشده'}
+      </button>
+    );
+  };
 
   return (
     <section aria-label="صف تأیید مدیر" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50/70 p-4 text-xs space-y-3">
@@ -52,7 +63,7 @@ export const ApprovalQueue: React.FC<Props> = ({ state, onUpdateState, onError }
           <h3 className="font-bold mb-1">وجوه تحویلی بازاریاب‌ها در انتظار تأیید ({pendingRemits.length})</h3>
           <ul className="space-y-1">{pendingRemits.map((r) => (
             <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 bg-white rounded-xl border border-stone-200 px-3 py-2">
-              <span><strong>{state.agents.find((a) => a.id === r.agentId)?.fullName}</strong> — {formatToman(r.remittedAmount)} — مرجع: {r.transferReference}</span>
+              <span><strong>{state.agents.find((a) => a.id === r.agentId)?.fullName}</strong> — {formatToman(r.remittedAmount)} — مرجع: {r.transferReference} — {docLink(r.documentId)}</span>
               <span className="space-x-2 space-x-reverse">
                 <button type="button" className={`${btn} bg-emerald-700 text-white`} onClick={() => run(() => verifyAgentRemittance(state, { remittanceId: r.id, approve: true }), 'تحویل وجه تأیید شد.')}>تأیید</button>
                 <button type="button" className={`${btn} bg-white border border-stone-300`} onClick={() => { const reason = ask('دلیل رد:'); if (reason) run(() => verifyAgentRemittance(state, { remittanceId: r.id, approve: false, reason }), 'تحویل وجه رد شد.'); }}>رد</button>
@@ -80,7 +91,7 @@ export const ApprovalQueue: React.FC<Props> = ({ state, onUpdateState, onError }
           <h3 className="font-bold mb-1">واریزی‌های در انتظار بررسی ({pendingPay.length}) - تأیید از «تأیید واریزی‌ها» در داشبورد؛ رد از اینجا</h3>
           <ul className="space-y-1">{pendingPay.slice(0, 8).map((p) => (
             <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 bg-white rounded-xl border border-stone-200 px-3 py-2">
-              <span><strong>{state.retailers.find((r) => r.id === p.retailerId)?.storeName}</strong> — {formatToman(p.amount)} — مرجع: {p.referenceNumber}</span>
+              <span><strong>{state.retailers.find((r) => r.id === p.retailerId)?.storeName}</strong> — {formatToman(p.amount)} — مرجع: {p.referenceNumber} — {docLink(p.receiptDocumentId)}</span>
               <button type="button" className={`${btn} bg-white border border-stone-300`} onClick={() => { const reason = ask('دلیل رد واریزی:'); if (reason) run(() => rejectRetailerPayment(state, { paymentId: p.id, reason }), 'واریزی رد شد.'); }}>رد</button>
             </li>))}</ul>
         </div>

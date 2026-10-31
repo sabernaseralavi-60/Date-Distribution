@@ -97,7 +97,9 @@ export interface CommissionRule {
     | 'fixed_per_package_sold'
     | 'fixed_per_package_settled'
     | 'fixed_per_new_retailer'
-    | 'campaign_bonus';
+    | 'campaign_bonus'
+    /** percent of the CONSUMER (shelf) price of every package whose settlement was collected, e.g. 5% of 700,000 = 35,000 per package */
+    | 'consumer_price_percent_settled';
   rateOrAmount: number;
   effectiveStartDate: string;
   effectiveEndDate?: string;
@@ -357,6 +359,8 @@ export interface AgentRemittance {
   remainingCashHeld: number;
   remittanceDate: string;
   transferReference: string;
+  /** signed remittance receipt (bank slip / cash handover) */
+  documentId?: string;
   status: 'pending' | 'verified' | 'rejected';
   verifiedBy?: string;
   notes: string;

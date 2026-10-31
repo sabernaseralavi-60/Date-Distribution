@@ -254,7 +254,7 @@ export const CustomerStorefrontView: React.FC<CustomerStorefrontViewProps> = ({ 
                   خرمای پیارم ممتاز صابر
                 </text>
                 <text x="130" y="106" textAnchor="middle" fill="#fcd34d" fontSize="11">
-                  وزن خالص: ۶۰۰ گرم | حاجی‌آباد هرمزگان
+                  وزن خالص: ۶۰۰ گرم | بم، کرمان
                 </text>
               </svg>
               <div className="text-lg font-extrabold text-white">{product.name}</div>
@@ -342,7 +342,7 @@ export const CustomerStorefrontView: React.FC<CustomerStorefrontViewProps> = ({ 
                       (Consignment) با حاشیه سود مصوب.
                     </p>
                     <div className="pt-1 text-xs font-bold text-stone-800 tabular-nums">
-                      قیمت تسویه فروشگاه: {formatToman(product.baseRetailerPrice)} (حاشیه سود ۱۵٪)
+                      قیمت تسویه فروشگاه: {formatToman(product.baseRetailerPrice)} (سود فروشگاه {formatPersianNumber(Math.round(((product.suggestedRetailPrice - product.baseRetailerPrice) / Math.max(1, product.suggestedRetailPrice)) * 100))}٪ از قیمت مصرف‌کننده {formatToman(product.suggestedRetailPrice)})
                     </div>
                   </div>
                   <button
@@ -359,7 +359,7 @@ export const CustomerStorefrontView: React.FC<CustomerStorefrontViewProps> = ({ 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 <div className="p-3 rounded-xl bg-stone-50 border border-stone-200/70">
                   <div className="text-[11px] text-stone-500">خاستگاه محصول</div>
-                  <div className="text-xs font-bold text-stone-900 mt-0.5">حاجی‌آباد هرمزگان</div>
+                  <div className="text-xs font-bold text-stone-900 mt-0.5">بم، کرمان</div>
                 </div>
                 <div className="p-3 rounded-xl bg-stone-50 border border-stone-200/70">
                   <div className="text-[11px] text-stone-500">وزن خالص و بسته‌بندی</div>

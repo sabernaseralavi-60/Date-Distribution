@@ -884,6 +884,7 @@ export function verifyOfficialDocument(
 
   const inv = computeInventorySummary(state, doc.productId);
   const now = nowIso();
+  // payment / remittance receipts carry no stock movement: verification only marks the signed copy as accepted
   const nextInventoryTxs = [...state.inventoryTransactions];
   const nextConsignmentDeliveries = [...state.consignmentDeliveries];
   const nextInvoices = [...state.invoices];
@@ -1453,17 +1454,67 @@ export function submitRetailerPayment(
     });
   }
 
+  const collectingAgent = state.agents.find((a) => a.id === (input.collectingAgentId ?? retailer.agentId));
+  const receiptDoc = createMoneyDocument(state, {
+    type: 'payment_receipt',
+    title: input.collectedByAgentDirectly ? 'رسید دریافت وجه توسط بازاریاب (فرم ۷)' : 'تصویر فیش واریزی فروشگاه (فرم ۶)',
+    agentId: collectingAgent?.id ?? retailer.agentId,
+    retailerId: retailer.id,
+    amount: input.amount,
+    declaration: input.collectedByAgentDirectly
+      ? `اینجانب نمایندهٔ فروشگاه «${retailer.storeName}» مبلغ ${Math.round(input.amount).toLocaleString('en-US')} ${state.settings.currencyLabel} را به‌صورت نقد به بازاریاب ${collectingAgent?.fullName ?? ''} تحویل دادم و بازاریاب دریافت آن را به نمایندگی از ${state.settings.businessName} تأیید می‌کند. این وجه تا واریز به مدیریت و تأیید مدیر، نزد بازاریاب امانت است و به‌خودی‌خود واریز به حساب مدیریت محسوب نمی‌شود.`
+      : `تصویر فیش/رسید بانکی واریز ${Math.round(input.amount).toLocaleString('en-US')} ${state.settings.currencyLabel} توسط «${retailer.storeName}» (شمارهٔ پیگیری ${input.referenceNumber}) پیوست می‌شود. تأیید نهایی با مدیریت است.`,
+    notes: `مرتبط با ${payNum}`,
+    signerAgentName: collectingAgent?.fullName,
+    signerRetailerName: retailer.ownerName,
+  });
+  newPayment.receiptDocumentId = receiptDoc.id;
+
   const withPending: SaberCommerceState = {
     ...state,
     version: state.version + 1,
     payments: [newPayment, ...state.payments],
+    documents: [receiptDoc, ...state.documents],
     agentCashCollections: nextCashCollections,
   };
 
   if (input.autoVerify) {
-    return verifyRetailerPayment(withPending, { paymentId: payId });
+    // an administrator's explicit choice to verify at once: the signed copy can be attached afterwards
+    return verifyRetailerPayment(withPending, { paymentId: payId, requireSigned: false });
   }
   return withPending;
+}
+
+// ---------------------------------------------------------------------------
+// Signed money documents (Part 19-21): bank slip / collection receipt / remittance receipt, each with a place for the scanned copy
+// ---------------------------------------------------------------------------
+function createMoneyDocument(
+  state: SaberCommerceState,
+  input: { type: 'payment_receipt' | 'remittance_receipt'; title: string; agentId?: string; retailerId?: string; amount: number; declaration: string; notes: string; signerAgentName?: string; signerRetailerName?: string }
+): OfficialDocument {
+  const prefix = input.type === 'payment_receipt' ? 'RCP' : 'RMD';
+  const seq = state.documents.filter((d) => d.documentType === input.type).length + 1;
+  return {
+    id: `doc-${prefix.toLowerCase()}-${uid()}`,
+    documentNumber: `${prefix}-${state.settings.documentNumberPrefixYear}-${String(seq).padStart(5, '0')}`,
+    documentType: input.type,
+    title: input.title,
+    issueDate: nowIso(),
+    agentId: input.agentId,
+    retailerId: input.retailerId,
+    productId: state.products[0]?.id ?? '',
+    quantity: 0,
+    unitReferencePrice: 0,
+    totalReferenceValue: Math.round(input.amount),
+    policyMode: 'consignment',
+    declarationText: input.declaration,
+    verificationStatus: 'pending_signature',
+    isDemoPlaceholder: false,
+    signerAgentName: input.signerAgentName,
+    signerRetailerName: input.signerRetailerName,
+    attachments: [],
+    notes: input.notes,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1534,14 +1585,14 @@ function allocateAmount(
 }
 
 type CommissionEvent =
-  | { kind: 'collection'; sourceId: string; retailerId: string; salesAgentId: string; collectingAgentId?: string; basis: number; packagesSettled: number; productId: string; allocationId?: string }
+  | { kind: 'collection'; sourceId: string; retailerId: string; salesAgentId: string; collectingAgentId?: string; basis: number; packagesSettled: number; packagesExact: number; consumerPrice: number; productId: string; allocationId?: string }
   | { kind: 'sale'; sourceId: string; retailerId: string; salesAgentId: string; basis: number; quantity: number; productId: string }
   | { kind: 'new_retailer'; sourceId: string; retailerId: string; salesAgentId: string; productId: string };
 
 function ruleApplies(rule: CommissionRule, event: CommissionEvent): boolean {
   switch (event.kind) {
     case 'collection':
-      return rule.method === 'verified_collections_percent' || rule.method === 'fixed_per_package_settled' || rule.method === 'campaign_bonus';
+      return rule.method === 'verified_collections_percent' || rule.method === 'fixed_per_package_settled' || rule.method === 'campaign_bonus' || rule.method === 'consumer_price_percent_settled';
     case 'sale':
       return rule.method === 'reported_sales_percent' || rule.method === 'fixed_per_package_sold';
     case 'new_retailer':
@@ -1555,6 +1606,7 @@ function ruleAmount(rule: CommissionRule, event: CommissionEvent): { basis: numb
   if (event.kind === 'collection') {
     basis = event.basis;
     if (rule.method === 'fixed_per_package_settled') amount = event.packagesSettled * rule.rateOrAmount;
+    else if (rule.method === 'consumer_price_percent_settled') amount = (event.packagesExact * event.consumerPrice * rule.rateOrAmount) / 100;
     else amount = (event.basis * rule.rateOrAmount) / 100;
   } else if (event.kind === 'sale') {
     basis = event.basis;
@@ -1682,6 +1734,20 @@ function settlementJournal(
   return entries;
 }
 
+function exactPackagesForAllocations(state: SaberCommerceState, allocations: PaymentAllocation[]): number {
+  let pk = 0;
+  for (const a of allocations) {
+    const inv = state.invoices.find((i) => i.id === a.invoiceId);
+    if (inv && inv.unitPriceSnapshot > 0) pk += a.allocatedAmount / inv.unitPriceSnapshot;
+  }
+  return pk;
+}
+
+function consumerPriceOf(state: SaberCommerceState, productId: string): number {
+  const p = state.products.find((x) => x.id === productId);
+  return p ? p.suggestedRetailPrice : 0;
+}
+
 function packagesForAllocations(state: SaberCommerceState, allocations: PaymentAllocation[]): number {
   let pk = 0;
   for (const a of allocations) {
@@ -1693,12 +1759,17 @@ function packagesForAllocations(state: SaberCommerceState, allocations: PaymentA
 
 export function verifyRetailerPayment(
   state: SaberCommerceState,
-  input: { paymentId: string; targetInvoiceId?: string }
+  input: { paymentId: string; targetInvoiceId?: string; requireSigned?: boolean }
 ): SaberCommerceState {
   const payment = state.payments.find((p) => p.id === input.paymentId);
   if (!payment) throw new Error('رکورد پرداخت یافت نشد.');
   if (payment.status === 'verified') return state; // idempotent
   if (payment.status !== 'pending') throw new Error('فقط پرداخت در انتظار بررسی قابل تأیید است.');
+  // cash collected by an agent needs the receipt signed by the store and the agent (scan attached) before it counts (Part 20)
+  if (payment.collectedByAgentDirectly && payment.receiptDocumentId && input.requireSigned !== false) {
+    const rd = state.documents.find((d) => d.id === payment.receiptDocumentId);
+    if (rd && rd.attachments.length === 0) throw new Error('رسید دریافت وجه نقد باید با امضای فروشگاه و بازاریاب چاپ، امضا و اسکن آن بارگذاری شود؛ سپس تأیید ممکن است.');
+  }
   const retailer = state.retailers.find((r) => r.id === payment.retailerId);
   if (!retailer) throw new Error('فروشگاه یافت نشد.');
 
@@ -1716,6 +1787,8 @@ export function verifyRetailerPayment(
           collectingAgentId: payment.collectingAgentId,
           basis: res.allocated,
           packagesSettled: packagesForAllocations(withInvoices, res.allocations),
+          packagesExact: exactPackagesForAllocations(withInvoices, res.allocations),
+          consumerPrice: consumerPriceOf(state, res.invoices.find((i) => i.id === res.allocations[0]?.invoiceId)?.productId ?? state.products[0]?.id ?? ''),
           productId: res.invoices.find((i) => i.id === res.allocations[0]?.invoiceId)?.productId ?? state.products[0]?.id ?? '',
           allocationId: undefined,
         })
@@ -1768,6 +1841,8 @@ export function applyRetailerCredit(state: SaberCommerceState, retailerId: strin
       collectingAgentId: payment.collectingAgentId,
       basis: res.allocated,
       packagesSettled: packagesForAllocations(withInv, res.allocations),
+      packagesExact: exactPackagesForAllocations(withInv, res.allocations),
+      consumerPrice: consumerPriceOf(s, res.invoices.find((i) => i.id === res.allocations[0]?.invoiceId)?.productId ?? s.products[0]?.id ?? ''),
       productId: res.invoices.find((i) => i.id === res.allocations[0]?.invoiceId)?.productId ?? s.products[0]?.id ?? '',
       allocationId: res.allocations[0]?.id,
     });
@@ -1896,16 +1971,28 @@ export function submitAndVerifyAgentRemittance(
   }
   const now = nowIso();
   const remId = `arem-${uid()}`;
+  const remAgent = state.agents.find((a) => a.id === input.agentId);
   const remNum = `REM-${state.settings.documentNumberPrefixYear}-${String(
     state.agentRemittances.length + 1
   ).padStart(4, '0')}`;
 
+  const remDoc = createMoneyDocument(state, {
+    type: 'remittance_receipt',
+    title: 'فرم تحویل وجوه وصول‌شده به مدیریت (فرم ۸)',
+    agentId: input.agentId,
+    amount: input.remittedAmount,
+    declaration: `بازاریاب ${remAgent?.fullName ?? ''} مبلغ ${Math.round(input.remittedAmount).toLocaleString('en-US')} ${state.settings.currencyLabel} از وجوه وصول‌شده از فروشگاه‌ها را به مدیریت ${state.settings.businessName} تحویل (نقد) یا واریز (بانکی، مرجع ${input.transferReference.trim() || '—'}) نمود. تصویر فیش بانکی یا رسید امضاشدهٔ تحویل نقد پیوست می‌شود.`,
+    notes: `مرجع ${input.transferReference.trim()}`,
+    signerAgentName: remAgent?.fullName,
+  });
   return {
     ...state,
     version: state.version + 1,
+    documents: [remDoc, ...state.documents],
     agentRemittances: [
       {
         id: remId,
+        documentId: remDoc.id,
         remittanceNumber: remNum,
         agentId: input.agentId,
         previousCashHeld: currentHeld,
@@ -1928,6 +2015,10 @@ export function verifyAgentRemittance(state: SaberCommerceState, input: { remitt
   if (!r) throw new Error('رسید تحویل وجه یافت نشد.');
   if (r.status !== 'pending') throw new Error('این رسید قبلاً بررسی شده است.');
   if (!input.approve && !(input.reason ?? '').trim()) throw new Error('دلیل رد الزامی است.');
+  if (input.approve && r.documentId) {
+    const rd = state.documents.find((d) => d.id === r.documentId);
+    if (rd && rd.attachments.length === 0) throw new Error('تصویر فیش بانکی یا رسید امضاشدهٔ تحویل وجه بارگذاری نشده است.');
+  }
   return {
     ...state,
     version: state.version + 1,

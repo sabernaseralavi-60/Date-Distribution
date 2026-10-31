@@ -35,3 +35,10 @@
 | Private uploads | magic-byte rejection, SHA-256 equals the file's hash, 401/404 for outsiders | local API test | not exercised through the browser upload dialog |
 | Live demo reset to the seeded state after testing | administrator `reset-demo` | live | |
 | External services | Neon = real, Vercel = real, payment gateway = SIMULATED, SMS = not built, Firebase = removed | | |
+
+## Update 2026-10-31 (prices, origin, signed money documents)
+| Claim | How | Not verified |
+|---|---|---|
+| Demo reconciles at the new prices: 70 x 560,000 = 39,200,000 receivables, 28,000,000 collected, 11,200,000 open, 20 online packages x 700,000 = 14,000,000 | engine test (hand-computed) | |
+| Agent commission = 5% of the 700,000 consumer price per settled box (35,000; 2.5 boxes -> 87,500) | engine tests | other commission methods still individually untested |
+| Cash receipt and remittance cannot be verified without the signed scan; both parties see the document, another store does not | engine + API tests; browser: store uploads a slip through the dialog and the administrator sees it | print layout of the new document types looked at on screen only, not printed |

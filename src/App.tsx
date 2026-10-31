@@ -321,7 +321,7 @@ export default function App() {
         <Suspense fallback={<Spinner />}>
           {role === 'admin' && adminSubView === 'dashboard' && (
             <>
-              <ApprovalQueue state={state} onUpdateState={commit} onError={(m) => showToast(m, true)} />
+              <ApprovalQueue state={state} onUpdateState={commit} onError={(m) => showToast(m, true)} onOpenDocument={(d) => setInspectedDocId(d.id)} />
               <AdminDashboardView
                 state={state}
                 onOpenDocument={(doc) => setInspectedDocId(doc.id)}

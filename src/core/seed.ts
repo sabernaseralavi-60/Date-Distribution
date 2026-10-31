@@ -39,7 +39,7 @@ export const createInitialSaberState = createInitialSeedState;
 export function createInitialSeedState(): SaberCommerceState {
   const settings: BusinessSettings = {
     businessName: 'خرمای صابر',
-    brandTitle: 'خرمای صابر — نخلستان‌های جنوب ایران',
+    brandTitle: 'خرمای صابر — نخلستان‌های بم',
     logoText: 'صابر',
     address: 'تهران، خیابان ولیعصر، بالاتر از میدان ونک، پلاک २४۸، واحد ۱۲',
     phone: '۰۲۱-۸۸۷۷۶۶۵۵',
@@ -67,19 +67,20 @@ export function createInitialSeedState(): SaberCommerceState {
     id: 'prod-piarom-600',
     sku: 'PRM-600',
     slug: 'piarom-600',
-    name: 'خرمای پیارم ممتاز حاجی‌آباد',
+    name: 'خرمای پیارم ممتاز بم',
     brand: 'خرمای صابر',
     category: 'خرمای خشک و نیمه‌خشک صادراتی',
     packaging: 'بسته پلاستیکی شفاف کریستالی بهداشتی',
     netWeightGrams: 600,
     unit: 'بسته',
     description:
-      'خرمای پیارم درجه یک دست‌چین نخلستان‌های حاجی‌آباد هرمزگان، با پوست نازک قهوه‌ای تیره، بافت گوشتی کاراملی و قند طبیعی مناسب مصرف روزانه و پذیرایی در بسته‌بندی شفاف ۶۰۰ گرمی.',
-    costPrice: 155000,
-    baseRetailerPrice: 200000,
-    retailerMarkupPercent: 15,
-    suggestedRetailPrice: 230000,
-    directB2cPrice: 240000,
+      'خرمای پیارم درجه یک دست‌چین نخلستان‌های بم، با پوست نازک قهوه‌ای تیره، بافت گوشتی کاراملی و قند طبیعی مناسب مصرف روزانه و پذیرایی در بسته‌بندی شفاف ۶۰۰ گرمی.',
+    // cost price is unknown to the system: the owner enters it (form 3); 0 means 'not entered'
+    costPrice: 0,
+    baseRetailerPrice: 560000,
+    retailerMarkupPercent: 25,
+    suggestedRetailPrice: 700000,
+    directB2cPrice: 700000,
     campaignPrice: undefined,
     priceEffectiveDate: '2026-10-01T08:00:00.000Z',
     minStockAlert: 25,
@@ -90,26 +91,26 @@ export function createInitialSeedState(): SaberCommerceState {
   };
 
   const agentDefinitions = [
-    { id: 'ag-1', code: 'AG-01', name: 'امیرحسین رضایی', mobile: '09121110001', rate: 6, retailers: ['rt-1', 'rt-2'], district: 'منطقه ۱ و ۳ (شمیرانات و ونک)' },
-    { id: 'ag-2', code: 'AG-02', name: 'محمدمهدی کریمی', mobile: '09121110002', rate: 7, retailers: ['rt-3', 'rt-4'], district: 'منطقه ۲ (سعادت‌آباد و شهرک غرب)' },
-    { id: 'ag-3', code: 'AG-03', name: 'سارا احمدی', mobile: '09121110003', rate: 8, retailers: ['rt-5', 'rt-6'], district: 'منطقه ۶ (یوسف‌آباد و امیرآباد)' },
+    { id: 'ag-1', code: 'AG-01', name: 'امیرحسین رضایی', mobile: '09121110001', rate: 5, retailers: ['rt-1', 'rt-2'], district: 'منطقه ۱ و ۳ (شمیرانات و ونک)' },
+    { id: 'ag-2', code: 'AG-02', name: 'محمدمهدی کریمی', mobile: '09121110002', rate: 5, retailers: ['rt-3', 'rt-4'], district: 'منطقه ۲ (سعادت‌آباد و شهرک غرب)' },
+    { id: 'ag-3', code: 'AG-03', name: 'سارا احمدی', mobile: '09121110003', rate: 5, retailers: ['rt-5', 'rt-6'], district: 'منطقه ۶ (یوسف‌آباد و امیرآباد)' },
     { id: 'ag-4', code: 'AG-04', name: 'علی‌اصغر محمدی', mobile: '09121110004', rate: 5, retailers: ['rt-7', 'rt-8'], district: 'منطقه ۴ و ۸ (تهرانپارس و نارمک)' },
-    { id: 'ag-5', code: 'AG-05', name: 'نگار حسینی', mobile: '09121110005', rate: 6, retailers: ['rt-9', 'rt-10'], district: 'منطقه ۵ (پونک و جنت‌آباد)' },
+    { id: 'ag-5', code: 'AG-05', name: 'نگار حسینی', mobile: '09121110005', rate: 5, retailers: ['rt-9', 'rt-10'], district: 'منطقه ۵ (پونک و جنت‌آباد)' },
     { id: 'ag-6', code: 'AG-06', name: 'رضا کاظمی', mobile: '09121110006', rate: 5, retailers: ['rt-11', 'rt-12'], district: 'منطقه ۷ و ۱۰ (مطهری و ستارخان)' },
   ];
 
   const commissionRules: CommissionRule[] = agentDefinitions.map((ag, idx) => ({
     id: `crule-${idx + 1}`,
-    name: `قانون پورسانت وصول مطالبات (${ag.rate}٪) — ${ag.name}`,
+    name: `پورسانت ${ag.rate}٪ قیمت مصرف‌کنندهٔ هر بسته تسویه‌شده — ${ag.name}`,
     agentId: ag.id,
     productId: mainProduct.id,
     channel: 'B2B',
-    method: 'verified_collections_percent',
+    method: 'consumer_price_percent_settled',
     rateOrAmount: ag.rate,
     effectiveStartDate: '2026-10-01T08:00:00.000Z',
     minThreshold: 0,
     isActive: true,
-    notes: `پورسانت استاندارد ${ag.rate} درصد بر مبنای مبالغ وصول و تأییدشده از فروشگاه‌ها`,
+    notes: `${ag.rate} درصد قیمت مصرف‌کننده (۷۰۰٬۰۰۰ تومان) به‌ازای هر بسته که تسویه آن از فروشگاه وصول و تأیید شده است (۳۵٬۰۰۰ تومان)`,
   }));
 
   const agents: SalesAgent[] = agentDefinitions.map((ag, idx) => ({
@@ -135,16 +136,16 @@ export function createInitialSeedState(): SaberCommerceState {
   // RT-11..RT-12 sell 1 package each (2 total)
   // Total = 70 packages sold.
   const retailerDefinitions = [
-    { id: 'rt-1', code: 'RT-01', storeName: 'هایپرمارکت زعفرانیه', ownerName: 'حاج محمود توکلی', agentId: 'ag-1', district: 'زعفرانیه', sold: 8, paidVerified: 1600000, pendingPay: 0, overdue: false },
-    { id: 'rt-2', code: 'RT-02', storeName: 'سوپرمارکت نمونه ونک', ownerName: 'بهرام شمس', agentId: 'ag-1', district: 'میدان ونک', sold: 8, paidVerified: 1600000, pendingPay: 0, overdue: false },
-    { id: 'rt-3', code: 'RT-03', storeName: 'فروشگاه پروتئین و خشکبار سعادت', ownerName: 'کیوان نادری', agentId: 'ag-2', district: 'سعادت‌آباد', sold: 8, paidVerified: 1600000, pendingPay: 0, overdue: false },
-    { id: 'rt-4', code: 'RT-04', storeName: 'سوپرمارکت کاج طلایی', ownerName: 'مرتضی عرب', agentId: 'ag-2', district: 'شهرک غرب', sold: 8, paidVerified: 1600000, pendingPay: 0, overdue: false },
-    { id: 'rt-5', code: 'RT-05', storeName: 'مارکت ارگانیک یوسف‌آباد', ownerName: 'فرهاد امینی', agentId: 'ag-3', district: 'یوسف‌آباد', sold: 8, paidVerified: 1200000, pendingPay: 0, overdue: false },
-    { id: 'rt-6', code: 'RT-06', storeName: 'فروشگاه مواد غذایی بهاران', ownerName: 'سعید جلالی', agentId: 'ag-3', district: 'امیرآباد شمالی', sold: 8, paidVerified: 1000000, pendingPay: 0, overdue: true },
-    { id: 'rt-7', code: 'RT-07', storeName: 'سوپرمارکت فلکه اول تهرانپارس', ownerName: 'جواد حیدری', agentId: 'ag-4', district: 'تهرانپارس', sold: 8, paidVerified: 600000, pendingPay: 0, overdue: true },
-    { id: 'rt-8', code: 'RT-08', storeName: 'سوپرمارکت هفت‌حوض', ownerName: 'حمیدرضا قاسمی', agentId: 'ag-4', district: 'نارمک', sold: 4, paidVerified: 800000, pendingPay: 0, overdue: false },
-    { id: 'rt-9', code: 'RT-09', storeName: 'فروشگاه زنجیره‌ای پونک مال', ownerName: 'پیمان مرادی', agentId: 'ag-5', district: 'پونک', sold: 4, paidVerified: 0, pendingPay: 400000, overdue: true },
-    { id: 'rt-10', code: 'RT-10', storeName: 'سوپرمارکت شاهین شمالی', ownerName: 'داوود رستمی', agentId: 'ag-5', district: 'جنت‌آباد', sold: 4, paidVerified: 0, pendingPay: 500000, overdue: false },
+    { id: 'rt-1', code: 'RT-01', storeName: 'هایپرمارکت زعفرانیه', ownerName: 'حاج محمود توکلی', agentId: 'ag-1', district: 'زعفرانیه', sold: 8, paidVerified: 4480000, pendingPay: 0, overdue: false },
+    { id: 'rt-2', code: 'RT-02', storeName: 'سوپرمارکت نمونه ونک', ownerName: 'بهرام شمس', agentId: 'ag-1', district: 'میدان ونک', sold: 8, paidVerified: 4480000, pendingPay: 0, overdue: false },
+    { id: 'rt-3', code: 'RT-03', storeName: 'فروشگاه پروتئین و خشکبار سعادت', ownerName: 'کیوان نادری', agentId: 'ag-2', district: 'سعادت‌آباد', sold: 8, paidVerified: 4480000, pendingPay: 0, overdue: false },
+    { id: 'rt-4', code: 'RT-04', storeName: 'سوپرمارکت کاج طلایی', ownerName: 'مرتضی عرب', agentId: 'ag-2', district: 'شهرک غرب', sold: 8, paidVerified: 4480000, pendingPay: 0, overdue: false },
+    { id: 'rt-5', code: 'RT-05', storeName: 'مارکت ارگانیک یوسف‌آباد', ownerName: 'فرهاد امینی', agentId: 'ag-3', district: 'یوسف‌آباد', sold: 8, paidVerified: 3360000, pendingPay: 0, overdue: false },
+    { id: 'rt-6', code: 'RT-06', storeName: 'فروشگاه مواد غذایی بهاران', ownerName: 'سعید جلالی', agentId: 'ag-3', district: 'امیرآباد شمالی', sold: 8, paidVerified: 2800000, pendingPay: 0, overdue: true },
+    { id: 'rt-7', code: 'RT-07', storeName: 'سوپرمارکت فلکه اول تهرانپارس', ownerName: 'جواد حیدری', agentId: 'ag-4', district: 'تهرانپارس', sold: 8, paidVerified: 1680000, pendingPay: 0, overdue: true },
+    { id: 'rt-8', code: 'RT-08', storeName: 'سوپرمارکت هفت‌حوض', ownerName: 'حمیدرضا قاسمی', agentId: 'ag-4', district: 'نارمک', sold: 4, paidVerified: 2240000, pendingPay: 0, overdue: false },
+    { id: 'rt-9', code: 'RT-09', storeName: 'فروشگاه زنجیره‌ای پونک مال', ownerName: 'پیمان مرادی', agentId: 'ag-5', district: 'پونک', sold: 4, paidVerified: 0, pendingPay: 1120000, overdue: true },
+    { id: 'rt-10', code: 'RT-10', storeName: 'سوپرمارکت شاهین شمالی', ownerName: 'داوود رستمی', agentId: 'ag-5', district: 'جنت‌آباد', sold: 4, paidVerified: 0, pendingPay: 1400000, overdue: false },
     { id: 'rt-11', code: 'RT-11', storeName: 'سوپرمارکت سهروردی', ownerName: 'مجید فلاح', agentId: 'ag-6', district: 'سهروردی شمالی', sold: 1, paidVerified: 0, pendingPay: 0, overdue: true },
     { id: 'rt-12', code: 'RT-12', storeName: 'مارکت سلامت ستارخان', ownerName: 'اشکان پورمند', agentId: 'ag-6', district: 'ستارخان', sold: 1, paidVerified: 0, pendingPay: 0, overdue: false },
   ];
@@ -502,7 +503,7 @@ export function createInitialSeedState(): SaberCommerceState {
         amount: rtDef.paidVerified,
       });
 
-      const commAmount = Math.round((rtDef.paidVerified * ag.commissionRatePercent) / 100);
+      const commAmount = Math.round(((rtDef.paidVerified / mainProduct.baseRetailerPrice) * mainProduct.suggestedRetailPrice * ag.commissionRatePercent) / 100);
       const isPaidOut = idx < 3; // First 3 commissions already paid out to demonstrate both Paid and Approved/Unpaid states
       const commId = `comm-${idx + 1}`;
       commissions.push({
@@ -514,7 +515,9 @@ export function createInitialSeedState(): SaberCommerceState {
         retailerId: rt.id,
         productId: mainProduct.id,
         baseBasisAmount: rtDef.paidVerified,
-        ruleNameSnapshot: `قانون پورسانت وصول مطالبات (${ag.commissionRatePercent}٪)`,
+        ruleNameSnapshot: `پورسانت ${ag.commissionRatePercent}٪ قیمت مصرف‌کنندهٔ هر بسته تسویه‌شده`,
+        ruleId: `crule-${agentDefinitions.findIndex((a) => a.id === ag.id) + 1}`,
+        sourceType: 'payment' as const,
         ratePercentSnapshot: ag.commissionRatePercent,
         commissionAmount: commAmount,
         paidAmount: isPaidOut ? commAmount : 0,
@@ -522,7 +525,7 @@ export function createInitialSeedState(): SaberCommerceState {
         status: isPaidOut ? 'paid' : idx < 6 ? 'approved' : 'earned',
         createdAt: '2026-10-24T14:05:00.000Z',
         approvedAt: idx < 6 ? '2026-10-25T09:00:00.000Z' : undefined,
-        notes: `پورسانت ${ag.commissionRatePercent}٪ بابت وصول وجه تاییدشده از ${rt.storeName}`,
+        notes: `پورسانت ${ag.commissionRatePercent}٪ قیمت مصرف‌کننده بابت وصول وجه تاییدشده از ${rt.storeName}`,
       });
     }
 
@@ -711,7 +714,7 @@ export function createInitialSeedState(): SaberCommerceState {
     },
   ];
 
-  // Sample Agent Cash Collection & Remittance (Reconciled: Collected 500,000, Remitted 300,000, Held 200,000)
+  // Sample Agent Cash Collection & Remittance (Reconciled: Collected 1,400,000, Remitted 840,000, Held 560,000)
   const agentCashCollections: AgentCashCollection[] = [
     {
       id: 'acash-1',
@@ -719,7 +722,7 @@ export function createInitialSeedState(): SaberCommerceState {
       agentId: 'ag-3',
       retailerId: 'rt-5',
       paymentId: 'pay-ver-5',
-      amount: 500000,
+      amount: 1400000,
       collectedAt: '2026-10-24T10:00:00.000Z',
       method: 'cash',
       holdingStatus: 'held_by_agent',
@@ -733,14 +736,14 @@ export function createInitialSeedState(): SaberCommerceState {
       remittanceNumber: 'REM-1405-0001',
       agentId: 'ag-3',
       previousCashHeld: 0,
-      newlyCollectedAmount: 500000,
-      remittedAmount: 300000,
-      remainingCashHeld: 200000,
+      newlyCollectedAmount: 1400000,
+      remittedAmount: 840000,
+      remainingCashHeld: 560000,
       remittanceDate: '2026-10-25T13:00:00.000Z',
       transferReference: 'BANK-REM-3321',
       status: 'verified',
       verifiedBy: 'صابر نصرعلوی',
-      notes: 'تحویل ۳۰۰,۰۰۰ تومان به حساب مدیریت؛ ۲۰۰,۰۰۰ تومان نزد بازاریاب جهت تطبیق بعدی',
+      notes: 'تحویل ۸۴۰,۰۰۰ تومان به حساب مدیریت؛ ۵۶۰,۰۰۰ تومان نزد بازاریاب جهت تطبیق بعدی',
     },
   ];
 
@@ -761,7 +764,7 @@ export function createInitialSeedState(): SaberCommerceState {
       id: 'exp-2',
       expenseNumber: 'EXP-1405-0002',
       category: 'transport',
-      title: 'حمل یخچالی بار خرمای پیارم از حاجی‌آباد به انبار تهران',
+      title: 'حمل یخچالی بار خرمای پیارم از بم به انبار تهران',
       amount: 2400000,
       expenseDate: '2026-10-01T07:30:00.000Z',
       paidFromAccount: 'حساب جاری بانک ملت',

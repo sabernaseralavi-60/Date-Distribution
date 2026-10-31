@@ -103,3 +103,24 @@ test('administrator: forms 38-45 are real forms, user management lists the login
   await page.getByRole('button', { name: /مدیریت حساب|حساب کاربری|حساب‌های کاربری/ }).first().click();
   await expect(page.getByText('agent1').first()).toBeVisible({ timeout: 20_000 });
 });
+
+
+test('signed copies: a store uploads its bank slip through the document dialog and the administrator sees it', async ({ page }) => {
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(400, 5)]);
+  await login(page, 'rt04', DEMO_PW);
+  await page.getByRole('button', { name: /ثبت پرداخت/ }).click();
+  const modal = page.locator('form').filter({ hasText: 'ثبت نهایی' });
+  await modal.locator('input[type=number]').first().fill('77000');
+  await modal.locator('input[placeholder^="مثال"]').fill('E2E-SLIP-1');
+  await modal.getByRole('button', { name: 'ثبت نهایی' }).click();
+  await expect(page.getByText('E2E-SLIP-1').first()).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('button', { name: /مشاهده رسید و تعهدنامه/ }).first().click();
+  await page.locator('input[type=file]').setInputFiles({ name: 'slip.png', mimeType: 'image/png', buffer: png });
+  await expect(page.getByText(/SHA-256 واقعی/)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('link', { name: /slip\.png/ })).toBeVisible();
+  await page.getByLabel('بستن پیش‌نمایش سند').click();
+  await logout(page);
+
+  await login(page, ADMIN.user, ADMIN.pass);
+  await expect(page.getByText('تصویر امضاشده بارگذاری شده').first()).toBeVisible();
+});

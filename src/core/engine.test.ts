@@ -25,6 +25,7 @@ import {
   isInvoiceOverdue,
   refreshOverdueFlags,
   reverseRetailerPayment,
+  verifyAgentRemittance,
 } from './engine.ts';
 import { uid } from './runtime.ts';
 
@@ -42,9 +43,11 @@ test('Part 45 & 33: Initial seed state matches exact 200-package & 14M Toman rec
   assert.equal(inv.isReconciled, true);
 
   const fin = computeFinancialSummary(state);
-  assert.equal(fin.totalB2bReceivablesGenerated, 14000000);
-  assert.equal(fin.totalVerifiedB2bCollections, 10000000);
-  assert.equal(fin.totalOutstandingReceivables, 4000000);
+  // 70 packages x 560,000 (settlement price: 700,000 consumer price minus the store's 20%)
+  assert.equal(fin.totalB2bReceivablesGenerated, 39200000);
+  assert.equal(fin.totalVerifiedB2bCollections, 28000000);
+  assert.equal(fin.totalOutstandingReceivables, 11200000);
+  assert.equal(fin.totalB2cRevenue, 14000000, '20 packages x 700,000, free shipping above the threshold');
   assert.equal(fin.isReceivablesReconciled, true);
 });
 
@@ -210,10 +213,10 @@ test('Acceptance Tests 28-40 & 67: Retailer reports 6 packages sold, partial pay
   assert.equal(afterInv.retailerCustodyByRetailer['rt-11'], 3); // 9 - 6 = 3
   assert.equal(afterInv.isReconciled, true);
 
-  // Retailer rt-11 submits partial payment of 800,000 Toman
+  // Retailer rt-11 submits a partial payment of 1,400,000 Toman = 2.5 packages of the 560,000 settlement price
   state = submitRetailerPayment(state, {
     retailerId: 'rt-11',
-    amount: 800000,
+    amount: 1400000,
     method: 'bank_transfer',
     referenceNumber: 'TRX-RT11-800K',
     autoVerify: false,
@@ -230,9 +233,9 @@ test('Acceptance Tests 28-40 & 67: Retailer reports 6 packages sold, partial pay
 
   assert.equal(state.commissions.length, commCountBefore + 1);
   const newComm = state.commissions.find((c) => c.sourcePaymentId === pendingPay.id)!;
-  // Agent ag-6 has 5% commission rate -> 5% of 800,000 = 40,000 Toman
-  assert.equal(newComm.commissionAmount, 40000);
-  assert.equal(newComm.remainingPayable, 40000);
+  // Hand computation: 1,400,000 / 560,000 = 2.5 packages x (5% of the 700,000 consumer price = 35,000) = 87,500 Toman
+  assert.equal(newComm.commissionAmount, 87500);
+  assert.equal(newComm.remainingPayable, 87500);
 
   // Administrator pays a portion (25,000 Toman) of the commission
   state = payAgentCommission(state, {
@@ -243,7 +246,7 @@ test('Acceptance Tests 28-40 & 67: Retailer reports 6 packages sold, partial pay
 
   const updatedComm = state.commissions.find((c) => c.id === newComm.id)!;
   assert.equal(updatedComm.paidAmount, 25000);
-  assert.equal(updatedComm.remainingPayable, 15000);
+  assert.equal(updatedComm.remainingPayable, 62500);
   assert.equal(updatedComm.status, 'partially_paid');
 });
 
@@ -264,14 +267,14 @@ test('Acceptance Tests 41-55: Field visits, Agent cash collection & remittance r
   assert.equal(state.visits[0].observedStock, 0);
   assert.equal(state.restockRequests[0].requestedQuantity, 12);
 
-  // Agent ag-3 currently holds 200,000 Toman cash (500k collected - 300k remitted). Remit 150,000 Toman:
+  // Agent ag-3 currently holds 560,000 Toman cash (1,400,000 collected - 840,000 remitted). Remit 150,000 Toman:
   state = submitAndVerifyAgentRemittance(state, {
     agentId: 'ag-3',
     remittedAmount: 150000,
     transferReference: 'REM-150K',
   });
   const fin = computeFinancialSummary(state);
-  assert.equal(fin.agentCashByAgent['ag-3'].held, 50000);
+  assert.equal(fin.agentCashByAgent['ag-3'].held, 410000);
 
   // Agent ag-1 returns 2 unused packages to warehouse (currently holds 5)
   state = recordAgentReturnToWarehouse(state, {
@@ -433,4 +436,46 @@ test('ids never collide even within the same millisecond (F-009)', () => {
   } finally {
     setClock(null);
   }
+});
+
+
+test('Owner price decision: 700,000 per box, 20% to the store, 5% to the distribution agent (hand-computed)', () => {
+  const s = createInitialSeedState();
+  const p = s.products[0];
+  assert.equal(p.suggestedRetailPrice, 700000);
+  assert.equal(p.directB2cPrice, 700000);
+  assert.equal(p.suggestedRetailPrice - p.baseRetailerPrice, 140000, 'store keeps 20% = 140,000');
+  assert.equal(p.baseRetailerPrice, 560000);
+  assert.ok(/بم/.test(p.name) && !/حاجی/.test(p.name + p.description), 'origin is Bam');
+  assert.ok(s.commissionRules.every((r) => r.method === 'consumer_price_percent_settled' && r.rateOrAmount === 5));
+  // a full-package payment earns exactly 35,000 for the agent; the owner keeps 700,000 - 140,000 - 35,000 = 525,000 (75%)
+  const rt = s.retailers.find((r) => s.invoices.some((i) => i.retailerId === r.id && i.remainingAmount >= 560000))!;
+  const n = submitRetailerPayment(s, { retailerId: rt.id, amount: 560000, method: 'bank_transfer', referenceNumber: 'BOX', autoVerify: true });
+  const pay = n.payments.find((x) => x.referenceNumber === 'BOX')!;
+  const c = n.commissions.find((x) => x.sourcePaymentId === pay.id)!;
+  assert.equal(c.commissionAmount, 35000);
+  assert.equal(700000 - 140000 - c.commissionAmount, 525000);
+});
+
+test('signed money documents: cash collected by an agent needs the signed scan before verification; remittance too', () => {
+  let s = createInitialSeedState();
+  const rt = s.retailers.find((r) => s.invoices.some((i) => i.retailerId === r.id && i.remainingAmount > 0))!;
+  s = submitRetailerPayment(s, { retailerId: rt.id, amount: 100000, method: 'cash_to_agent', referenceNumber: 'CASH-DOC', collectedByAgentDirectly: true, collectingAgentId: rt.agentId, autoVerify: false });
+  const pay = s.payments.find((x) => x.referenceNumber === 'CASH-DOC')!;
+  const doc = s.documents.find((d) => d.id === pay.receiptDocumentId)!;
+  assert.equal(doc.documentType, 'payment_receipt');
+  assert.equal(doc.verificationStatus, 'pending_signature');
+  assert.throws(() => verifyRetailerPayment(s, { paymentId: pay.id }), /امضا/);
+  s = uploadSignedDocumentAttachment(s, { documentId: doc.id, filename: 's.png', mimeType: 'image/png', sizeBytes: 1000, uploadedBy: 'x' });
+  s = verifyRetailerPayment(s, { paymentId: pay.id });
+  assert.equal(s.payments.find((x) => x.id === pay.id)!.status, 'verified');
+
+  // remittance by an agent stays pending and needs its receipt scan
+  s = submitAndVerifyAgentRemittance(s, { agentId: 'ag-3', remittedAmount: 100000, transferReference: 'R-DOC', autoVerify: false });
+  const rem = s.agentRemittances.find((x) => x.transferReference === 'R-DOC')!;
+  assert.equal(rem.status, 'pending');
+  assert.throws(() => verifyAgentRemittance(s, { remittanceId: rem.id, approve: true }), /بارگذاری/);
+  s = uploadSignedDocumentAttachment(s, { documentId: rem.documentId!, filename: 'b.png', mimeType: 'image/png', sizeBytes: 1000, uploadedBy: 'x' });
+  s = verifyAgentRemittance(s, { remittanceId: rem.id, approve: true });
+  assert.equal(s.agentRemittances.find((x) => x.id === rem.id)!.status, 'verified');
 });

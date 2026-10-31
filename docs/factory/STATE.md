@@ -33,6 +33,8 @@
 ## Decisions (why, not only what)
 | Date | Decision | Alternatives | Reason |
 |---|---|---|---|
+| 2026-10-31 | Owner prices: box 700,000 consumer/online price; store 20% (settles at 560,000, markup field 25%); agent 5% of the consumer price per settled box (new rule method `consumer_price_percent_settled`, 35,000 per box); origin Bam; cost price left 0 (unknown) | fixed 35,000 per box; % of collections (6.25%) | exact 5% of the box price even for part payments (proportional) and when the price changes |
+| 2026-10-31 | Money handovers get signed-document records (payment_receipt, remittance_receipt) with scan upload and verification gates | upload only on goods documents | owner asked for places for signed forms between agent-store and administrator-agent |
 | 2026-10-31 | Ledger kept as one JSONB aggregate in Postgres (row-locked, engine-only writes) instead of 56 normalised tables | normalised Drizzle schema | rewriting the 2.3k-line engine to SQL is weeks of work and a larger correctness risk; isolation and atomicity achieved; limitation documented |
 | 2026-10-31 | Browser forms validate with the real engine locally and record calls; the server replays them atomically | rewrite all forms as async API calls | minimal UI change, immediate Persian errors, server authoritative |
 | 2026-10-31 | Deploy as a labelled DEMO (SEED_DEMO=true) | blank real business | no real business data was supplied; the prompt asks for the demo; owner can reset or recreate |
