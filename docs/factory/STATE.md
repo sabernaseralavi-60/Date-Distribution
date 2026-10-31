@@ -4,7 +4,7 @@
 > Resume phrase: «کارخانه وب اپ: ادامه» (skill `webapp-factory`).
 
 ## Where we are
-- Stage: **2-audit first pass DONE (2026-10-31)**: 22 findings (6 S1, 12 S2, 4 S3), scorecard before 2/10 -> next: 3-harden (plan below). Second audit pass (documents/print, QR, reports/CSV, visits, returns, remittance, notifications, PWA, a11y) runs during/after hardening.
+- Stage: **5-ship DONE (2026-10-31)**: hardened, deployed and verified live. Scorecard 2/10 -> 6.5/10. Live: https://saber-date-commerce.vercel.app (Vercel team saber11 + Neon `saber-dates-db`, demo mode). Repo: https://github.com/sabernaseralavi-60/Date-Distribution (CI green). Open: F-012, F-019, F-023..F-026; second audit pass (print layout, reports/CSV, QR, PWA offline, accessibility) not done.
 - Created: 2026-10-31   Last session: 2026-10-31
 - Depth: **deep**   reason: scan score 8 = auth 2 + money 2 + PII 2 + >5k LOC 1 + >15k LOC 1 (16.5k lines); owner-facing financial ledger and signed legal-ish documents.
 - Baseline: untouched first commit = **a3957d5** ("baseline: builder output (untouched)", 41 files). Builder: Google AI Studio.
@@ -33,6 +33,10 @@
 ## Decisions (why, not only what)
 | Date | Decision | Alternatives | Reason |
 |---|---|---|---|
+| 2026-10-31 | Ledger kept as one JSONB aggregate in Postgres (row-locked, engine-only writes) instead of 56 normalised tables | normalised Drizzle schema | rewriting the 2.3k-line engine to SQL is weeks of work and a larger correctness risk; isolation and atomicity achieved; limitation documented |
+| 2026-10-31 | Browser forms validate with the real engine locally and record calls; the server replays them atomically | rewrite all forms as async API calls | minimal UI change, immediate Persian errors, server authoritative |
+| 2026-10-31 | Deploy as a labelled DEMO (SEED_DEMO=true) | blank real business | no real business data was supplied; the prompt asks for the demo; owner can reset or recreate |
+| 2026-10-31 | Firebase config removed from local history before the first push (public repo) | keep | the web key is a public identifier but needless exposure |
 | 2026-10-31 | Depth = deep | standard | score 8; money + PII + roles + large code base |
 | 2026-10-31 | Baseline commit excludes `.aistudio/`, `dev-dist/`, the spec .txt, and the spec copy in `public/assets/aistudio/` | commit all | builder artifacts and the owner's private prompt must not reach a (possibly public) repo |
 | 2026-10-31 | `firebase-applet-config.json` stays in the LOCAL baseline commit (build needs it) | exclude it | web API keys are public identifiers; re-evaluate at ship (restrict key, or drop Firebase) |
@@ -45,7 +49,9 @@
 - Is the real business data going to be entered here (Persian legal wording of custody/consignment documents should be reviewed by a human before real use)? Not blocking.
 
 ## Next steps (ordered, each ends with a verifiable result)
-1. (done) Stage 2 first audit pass: FINDINGS.md F-001..F-022, SCORECARD before, VERIFIED.md.
+1. (done) audit, hardening, deploy, live e2e (see VERIFIED.md).
+2. Owner: sign in with the credentials given in chat, change the admin password, decide F-024 (do store sales reports auto-verify?) and whether to move from the demo to a real blank business (SEED_DEMO=false on a NEW Neon database, or reset).
+3. Next session: second audit pass (print layout of the A4 documents, reports/CSV filters, QR page, PWA offline, accessibility), product form fields (F-012), replace window.prompt (F-023), ledger backup/export (F-026).
 2. Stage 3 harden: fix install (esbuild), lockfile, CI, `test` script; build server API + Postgres + auth + role scoping; keep the 6 engine tests and add API/authorisation tests (role replay).
 3. Stage 4 verify in browser against the production build; Stage 5 ship only after the owner gives repo/hosting.
 

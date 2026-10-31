@@ -44,3 +44,37 @@
 | QA-EMPTY-CATCH, QA-TODO | dev-dist/workbox-*.js | false positive | generated service worker (git-ignored) |
 | HON-SIMULATE | CustomerStorefrontView, FormsCatalogHub, PrintableDocumentModal, engine, seed, types | partly reviewed | B2C payment is labelled simulated and the document watermark exists (`PrintableDocumentModal.tsx:178`); the remaining wordings still to read in the second pass |
 | QA-TSANY | 13 uses of `any` | info | review in hardening |
+
+## Status after hardening (2026-10-31, commits e7725f0, a43b740 and follow-ups; live URL https://saber-date-commerce.vercel.app)
+| ID | Status | How it was closed / what remains |
+|---|---|---|
+| F-001 | fixed | real login (scrypt, HttpOnly signed cookie, lockout after 5 failures); role switcher removed. Tests: anonymous 401, wrong password, lockout; e2e login on live |
+| F-002 | fixed | state lives only in PostgreSQL; `src/core/scope.ts` builds agent/store/customer views on the server. Tests: agent/store scoping, role replay (403), public catalogue has no cost/commission |
+| F-003 | fixed | one atomic action endpoint, `SELECT ... FOR UPDATE`, idempotency keys; concurrent orders test: stock never negative |
+| F-004 | fixed | Firebase and Firestore rules removed |
+| F-005 | fixed | esbuild ^0.28, `package-lock.json`, `npm test` / `lint` / CI workflow (green) |
+| F-006 | fixed | commission only on allocated money; unallocated excess kept as `unallocatedAmount` and applied to the next invoice; unit + API tests |
+| F-007 | fixed (partly tested) | rule engine for collections %, sales %, fixed per package sold/settled, per new retailer, campaign, thresholds, caps, attribution policy incl. 50/50, reversal. Tested: fixed-per-package + cap + reversal; the other methods are implemented but not individually tested |
+| F-008 | fixed | overdue derived from due date and clock (`isInvoiceOverdue`, `refreshOverdueFlags`); test with a pinned clock |
+| F-009 | fixed | collision-free ids (`uid()`), retailer codes by max+1; the server requires an idempotency key per action |
+| F-010 | fixed (not unit-tested) | period start/received/returned/opening computed from the movement ledger |
+| F-011 | fixed (partly browser-tested) | forms 37-39, 41-45 are real forms (`AdminExtraForms.tsx`); e2e covers form 41 only; forms 38/39/43/44 were exercised by engine tests, not clicked |
+| F-012 | open | product form still lacks images, barcode and active flag fields; forms share UI blocks (13 for 45 forms) |
+| F-013 | fixed | file deleted; the Firebase config is also removed from the git history before the first push (history rewritten locally) |
+| F-014 | fixed | server-side upload: magic-byte check, 3 MB limit, real SHA-256, versions, private download with role check; the simulated-upload button was removed. Limitation: bytes live in PostgreSQL |
+| F-015 | fixed | Firebase removed (no key in the bundle) |
+| F-016 | fixed | province/city fields in the admin B2C form, public checkout and store request; product chosen from the catalogue |
+| F-017 | fixed | README rewritten to state only what is tested; `docs/ARCHITECTURE.md` lists departures and limitations |
+| F-018 | fixed | unused Drizzle DDL, Gemini/Firebase/dotenv dependencies removed; real migrations in `server/migrations` |
+| F-019 | open | journal entries are still single debit/credit pairs (documented limitation); Part 33 reconciliation formulas have tests |
+| F-020 | fixed | injectable clock/actor/id seed in `src/core/runtime.ts` |
+| F-021 | fixed | main chunk 299 kB (was 1,082 kB), panels lazy-loaded |
+| F-022 | partly | demo selectors removed from agent/store panels; toast position unchanged (S3) |
+
+### New findings found during hardening
+| ID | Sev | Finding | Status |
+|---|---|---|---|
+| F-023 | S3 | rejection reasons and password reset use `window.prompt` (two places) although the prompt forbids browser dialogs | open |
+| F-024 | policy | a store's own sales report auto-verifies and creates a receivable against itself (kept from v0); the prompt wants administrator verification of reports | open: owner decision |
+| F-025 | S3 | the admin forms hub still pre-fills realistic sample values (e.g. a customer name) | open |
+| F-026 | S2 | accessibility not measured; offline PWA not tested; no backup/export of the ledger (R-I2) | open |

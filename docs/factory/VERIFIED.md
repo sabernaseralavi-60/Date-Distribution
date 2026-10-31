@@ -23,3 +23,15 @@
 | Firebase Auth / Firestore | not exercised (no credentials used) | project, key restrictions, rules deploy (if it stays) |
 | Payment gateway | simulated inside the app (labelled) | an Iranian gateway adapter is not built |
 | SMS | not built (in-app notifications only, as the spec allows for release 1) | |
+
+## Verification run 2026-10-31 (after hardening)
+| Claim | How | Where | Not verified (limit) |
+|---|---|---|---|
+| Site is up on Vercel with Neon | `GET /healthz` returns `{"ok":true,"db":"pg"}` | https://saber-date-commerce.vercel.app (auto-deployed from GitHub main) | cold-start time not measured |
+| `npm ci`, lint, 32 tests, build pass in a clean clone and in GitHub Actions | fresh clone locally; CI run success | local + GitHub | |
+| 12 browser tests (desktop 1366 and mobile 390) pass on the production build locally AND on the live URL | Playwright, `e2e/workflow.spec.ts` | local server and live | flows: anonymous, wrong password, customer order + tracking, store payment then administrator verification, agent isolation, user-management form |
+| Role isolation | API tests (role replay 403, scoping), e2e agent isolation | local | not an independent penetration test |
+| Concurrency | parallel orders cannot make stock negative | local test | not load-tested |
+| Private uploads | magic-byte rejection, SHA-256 equals the file's hash, 401/404 for outsiders | local API test | not exercised through the browser upload dialog |
+| Live demo reset to the seeded state after testing | administrator `reset-demo` | live | |
+| External services | Neon = real, Vercel = real, payment gateway = SIMULATED, SMS = not built, Firebase = removed | | |
