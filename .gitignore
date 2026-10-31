@@ -1,0 +1,20 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# personal editor colour (vscode_color.py)
+.vscode/
+
+# factory: builder output / generated / owner-private
+.aistudio/
+dev-dist/
+.vercel
+Thumbs.db
+# owner's master prompt stays out of the repo (decision in docs/factory/STATE.md)
+دستور اولیه.txt
+public/assets/aistudio/

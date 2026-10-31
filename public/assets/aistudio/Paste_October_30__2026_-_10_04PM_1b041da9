@@ -1,0 +1,2530 @@
+# MASTER BUILD PROMPT
+# SABER DATE COMMERCE
+## Modular Omnichannel Sales, Distribution, Consignment, Field CRM, Inventory & Financial Management Platform
+
+---
+
+# PART 1 — YOUR ROLE AND MISSION
+
+Act as an autonomous multidisciplinary product development team composed of:
+
+1. Principal Software Architect
+2. Senior Full-Stack Engineer
+3. PostgreSQL Database Architect
+4. Financial Systems and Accounting Specialist
+5. Inventory and Supply Chain Specialist
+6. Sales Operations and CRM Specialist
+7. Commission and Incentive Management Specialist
+8. UX/UI Product Designer
+9. Persian RTL Interface Specialist
+10. Cybersecurity Engineer
+11. QA and Test Automation Engineer
+12. DevOps and Deployment Engineer
+
+Your responsibility is to design, implement, test, and deliver a complete web application for a real-world agricultural product distribution and sales business.
+
+The application must be modular, maintainable, visually excellent, financially consistent, and ready for progressive expansion.
+
+Do not merely create a presentation, landing page, dashboard mockup, or collection of nonfunctional pages.
+
+Build a genuinely functional database-backed application with:
+
+- User authentication
+- Role-based access control
+- Real database operations
+- Product and pricing management
+- Inventory movement tracking
+- Goods custody management
+- Signed delivery documents
+- Retailer management
+- Sales agent management
+- Field visit management
+- Consignment distribution
+- Direct consumer e-commerce
+- Payment and collection management
+- Commission calculation
+- Financial reporting
+- QR code functionality
+- Printable business forms
+- Document image uploads
+- Demonstration data
+- Automated tests
+
+The application must be usable by a real business owner, sales agents, grocery stores, and consumers.
+
+Make reasonable technical decisions autonomously. Do not repeatedly ask the owner to approve ordinary implementation decisions.
+
+If a genuine business policy is configurable, implement the configuration rather than hardcoding an arbitrary assumption.
+
+The final result must be a working product, not just a proposal.
+
+---
+
+# PART 2 — BUSINESS MODEL
+
+## 2.1 Initial business
+
+Business name: Saber Dates
+
+Initial product:
+
+- Product: Piarom Dates
+- Packaging: Transparent plastic package
+- Net weight: 600 grams
+- Initial demonstration inventory: 200 packages
+- Initial currency: Iranian Toman
+- Interface language: Persian
+- Interface direction: RTL
+
+The product brand name, logo, descriptions, product photographs, and business information must be editable from the administrator dashboard.
+
+Do not hardcode the business identity into the application.
+
+## 2.2 Future product expansion
+
+The platform must support multiple products from the beginning.
+
+The owner may later add:
+
+- Mazafati Dates
+- Kabkab Dates
+- Other agricultural products
+- Food products
+- Non-agricultural products
+
+Adding products must not require any source-code modifications.
+
+All inventory, pricing, commissions, reports, and sales documents must support multiple products.
+
+## 2.3 Two principal sales channels
+
+### Channel A — B2B grocery store distribution
+
+Products are delivered to grocery stores under a consignment arrangement.
+
+The business initially does not collect payment when delivering products.
+
+The grocery store sells products to its customers and reports the quantities sold.
+
+The store pays the business according to the agreed settlement terms.
+
+The business owner receives the amount corresponding to the products sold, while the retailer retains the agreed markup.
+
+### Channel B — B2C direct consumer sales
+
+Customers scan QR codes on product packages or visit the public website.
+
+They can purchase products directly.
+
+Payment must be completed before fulfillment.
+
+The products are then prepared and delivered to the customer.
+
+These channels must share product information and inventory infrastructure but have separate payment and settlement workflows.
+
+---
+
+# PART 3 — ARCHITECTURE AND TECHNOLOGY
+
+Use a modular, production-oriented architecture.
+
+Preferred technology:
+
+Frontend:
+- Next.js App Router
+- React
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+- Lucide Icons
+
+Backend:
+- Next.js Server Actions and Route Handlers
+- Modular services
+- Server-side business validation
+- Strict authorization checks
+
+Database:
+- Neon PostgreSQL
+- Drizzle ORM
+- Version-controlled migrations
+
+Authentication:
+- A stable authentication solution compatible with Next.js.
+- Secure password hashing.
+- Session management.
+- Role-based permissions.
+- Invitation and password reset workflows.
+
+Forms:
+- React Hook Form
+- Zod validation
+
+Charts:
+- Recharts or another suitable maintained library
+
+Tables:
+- TanStack Table or an equivalent robust solution
+
+QR:
+- A maintained QR Code generation library
+
+File storage:
+- Use a storage abstraction.
+- Local filesystem storage for development.
+- A private S3-compatible object storage provider for production, such as Cloudflare R2.
+- Do not depend on a persistent local filesystem in Vercel production.
+- Use protected file retrieval or short-lived signed URLs.
+- Store file metadata in PostgreSQL, not binary document contents.
+
+Deployment:
+- Vercel
+- Neon PostgreSQL
+
+Supporting requirements:
+- PWA capability
+- Mobile-first responsive design
+- Persian RTL
+- Persian/Jalali date presentation
+- Gregorian UTC timestamps in the database
+- Persian digit formatting
+- Centralized error handling
+- Environment configuration
+- Logging and audit trails
+
+Use maintained stable dependency versions available at implementation time. Do not unnecessarily use experimental packages.
+
+Document the limitations of free-tier infrastructure. Never promise unlimited free service.
+
+---
+
+# PART 4 — MODULAR ARCHITECTURE
+
+Implement these independent modules:
+
+1. Authentication and User Management
+2. Role and Permission Management
+3. Business Profile Management
+4. Product Catalog
+5. Pricing Rules
+6. Warehouse Management
+7. Inventory and Stock Ledger
+8. Sales Agent Management
+9. Retailer Management
+10. Customer Management
+11. Consignment Management
+12. Delivery and Goods Custody
+13. Signed Document Management
+14. Field Visit Management
+15. Retailer Sales Reporting
+16. Payment Collection
+17. Financial Ledger
+18. Commission Engine
+19. B2C E-commerce
+20. QR Code and Referral Tracking
+21. Order Management
+22. Delivery and Shipment Management
+23. Expense Management
+24. Notifications
+25. Analytics
+26. Document and Report Export
+27. Audit Log
+28. System Settings
+
+Keep modules independent.
+
+Use service interfaces and reusable components.
+
+Do not put all application logic into one massive component.
+
+Financial and inventory operations must be performed on the server and protected with database transactions.
+
+---
+
+# PART 5 — USER ROLES AND PERMISSIONS
+
+Implement four primary user roles.
+
+## 5.1 Business Owner / Administrator
+
+Full business control.
+
+Can:
+
+- Manage all users.
+- Create and update products.
+- Define product prices.
+- Configure retailer markups.
+- Configure agent commissions.
+- Manage warehouse inventory.
+- Approve transfers.
+- Manage retailers.
+- Assign retailers to agents.
+- Inspect all signed documents.
+- Verify payments.
+- Manage financial transactions.
+- Approve commissions.
+- Review visits.
+- View all reports.
+- Manage expenses.
+- Change system settings.
+- Export reports.
+
+## 5.2 Sales Agent
+
+Each sales agent has an individual account.
+
+An agent can:
+
+- View assigned retailers.
+- Request registration of a new retailer.
+- Receive inventory from the warehouse.
+- View custody obligations.
+- Transfer products to assigned retailers.
+- Generate delivery receipts.
+- Upload signed document images.
+- Record field visits.
+- Record retailer stock observations.
+- Report sales on behalf of a retailer when authorized.
+- Collect and record payments.
+- Submit collected money to the business owner.
+- Request restocking.
+- View retailer outstanding balances.
+- Follow up overdue payments.
+- View their own commission.
+- View their own performance.
+
+An agent must not access another agent's private data unless explicitly authorized.
+
+## 5.3 Retailer / Grocery Store
+
+A retailer can:
+
+- Register.
+- Manage its profile.
+- Request consignment products.
+- View received products.
+- View current inventory.
+- Report sold quantities.
+- Request restocking.
+- Report damaged products.
+- Submit payment information.
+- View confirmed payment history.
+- View outstanding financial obligations.
+- Download signed delivery receipts.
+- Track visits and requests.
+
+A retailer must only see its own information.
+
+## 5.4 Customer
+
+A customer can:
+
+- Browse products without registration.
+- Scan product QR codes.
+- View product details.
+- Create an order.
+- Enter delivery information.
+- Pay online.
+- Track delivery.
+- View order history.
+
+Do not require an account merely to browse products.
+
+---
+
+# PART 6 — CENTRAL ADMINISTRATIVE SETTINGS
+
+Build a comprehensive settings module.
+
+The owner must be able to configure:
+
+- Business name
+- Logo
+- Address
+- Telephone
+- Contact information
+- Currency
+- Date presentation
+- Default product markup
+- Default direct-sale price policy
+- Default retailer credit/consignment mode
+- Default agent custody policy
+- Default commission policy
+- Payment methods
+- Settlement periods
+- Document numbering patterns
+- Notification preferences
+- Delivery settings
+- Stock warning thresholds
+
+All important business values must be configurable.
+
+Historical transactions must never change silently when settings change.
+
+---
+
+# PART 7 — PRODUCT MANAGEMENT FORM
+
+Design a complete Persian product registration form.
+
+Page title:
+
+«ثبت محصول جدید»
+
+Fields:
+
+1. نام محصول — Required
+2. کد محصول (SKU) — Required and unique
+3. نام تجاری
+4. دسته‌بندی — Required
+5. نوع بسته‌بندی
+6. وزن خالص
+7. واحد اندازه‌گیری
+8. توضیحات محصول
+9. تصویر اصلی محصول
+10. تصاویر تکمیلی
+11. قیمت خرید یا بهای تمام‌شده
+12. قیمت پایه تسویه با سوپرمارکت
+13. قیمت فروش مستقیم به مشتری
+14. حداقل موجودی هشدار
+15. کد بارکد
+16. وضعیت فعال/غیرفعال
+
+Buttons:
+
+- ذخیره
+- ذخیره و افزودن محصول جدید
+- انصراف
+
+Validation:
+- SKU must be unique.
+- Weight must be positive.
+- Prices cannot be negative.
+- Images must pass file type and size validation.
+
+Product editing must not alter historical transaction snapshots.
+
+---
+
+# PART 8 — DYNAMIC PRICING MANAGEMENT
+
+Create a dedicated price management page.
+
+The owner must be able to define the following independently for every product:
+
+1. Product cost.
+2. Base retailer settlement price.
+3. Retailer markup percentage.
+4. Suggested retailer selling price.
+5. Direct B2C price.
+6. Optional campaign price.
+7. Effective date.
+8. Expiration date.
+
+Example:
+
+Base retailer settlement price: 200,000 Toman
+
+Retailer markup: 15%
+
+Suggested consumer price:
+
+200,000 × 1.15 = 230,000 Toman
+
+Direct consumer price can be independently set to 240,000 Toman.
+
+These are example values only.
+
+The owner can change rates at any time.
+
+For every order and financial transaction, store:
+
+- Unit price snapshot
+- Markup percentage snapshot
+- Commission policy snapshot
+- Effective date
+- Product reference
+
+The historical price must remain unchanged when the current price changes.
+
+---
+
+# PART 9 — SALES AGENT MANAGEMENT FORM
+
+Page title:
+
+«ثبت بازاریاب جدید»
+
+Fields:
+
+- نام و نام خانوادگی — Required
+- کد بازاریاب — Automatically generated
+- شماره موبایل — Required and unique
+- شماره شناسایی, optional
+- Address
+- Profile photo
+- Start date
+- Agent status
+- Username
+- Assigned commission policy
+- Initial retailer assignments
+- Notes
+- Optional supporting documents
+
+Agent statuses:
+
+- Active
+- Inactive
+- Suspended
+- Pending approval
+
+Provide these actions:
+
+- Save agent
+- Activate/deactivate
+- Edit profile
+- Assign retailers
+- Review performance
+- Review custody balance
+- Review commissions
+- View signed documents
+
+Do not allow deletion of agents with historical transactions. Use deactivation.
+
+---
+
+# PART 10 — RETAILER MANAGEMENT FORM
+
+Page title:
+
+«ثبت سوپرمارکت جدید»
+
+Fields:
+
+1. نام فروشگاه — Required
+2. نام مالک یا مسئول فروشگاه
+3. شماره موبایل
+4. شماره تلفن ثابت
+5. نشانی دقیق
+6. استان
+7. شهر
+8. منطقه یا محله
+9. Postal code
+10. GPS coordinates, optional
+11. Business identifier, optional
+12. Assigned sales agent
+13. Registration date
+14. Retailer status
+15. Settlement interval
+16. Credit/consignment policy
+17. Credit limit, if applicable
+18. Notes
+19. Optional image of the store
+20. Optional signed cooperation agreement
+
+Retailer statuses:
+
+- Pending
+- Active
+- Inactive
+- Suspended
+- Under financial review
+
+Retailer registration through a referral link must preserve the original acquisition agent.
+
+The administrator can approve or reject new retailers.
+
+Record the approval date and approving administrator.
+
+---
+
+# PART 11 — WAREHOUSE AND INVENTORY MANAGEMENT
+
+Create a fully functional inventory module.
+
+Separate inventory locations:
+
+- Main warehouse
+- Each sales agent
+- Each retailer
+- B2C fulfillment stock
+- Damaged or quarantined stock
+
+Each product must have quantity balances at each location.
+
+Implement inventory movements as immutable transactions.
+
+Never change inventory balances by directly editing a database field.
+
+Every change must have a movement record.
+
+Supported movements:
+
+- Initial stock entry
+- Supplier receipt
+- Warehouse-to-agent transfer
+- Agent-to-retailer delivery
+- Retailer sales report
+- Agent return to warehouse
+- Retailer return
+- B2C reservation
+- B2C fulfillment
+- Damaged stock
+- Approved stock adjustment
+
+Prevent negative inventory.
+
+Use database transactions and locking where necessary to prevent concurrent overselling or duplicate transfers.
+
+---
+
+# PART 12 — GOODS CUSTODY AND LIABILITY POLICY
+
+This is a critical part of the application.
+
+Distinguish between:
+
+A. Physical custody of goods.
+
+B. Financial debt.
+
+C. Contractual liability.
+
+These are related but are not automatically identical.
+
+## 12.1 Agent custody policy
+
+Provide two configurable modes.
+
+### Mode A — Consignment / Entrusted goods with accountability
+
+This is the default initial mode.
+
+The agent receives goods from the warehouse and signs a receipt confirming:
+
+- Product
+- Quantity
+- Unit reference value
+- Total reference value
+- Date
+- Responsibility for safekeeping
+- Responsibility for documenting retailer deliveries
+- Responsibility for returning undelivered stock or resolving discrepancies according to the agreement
+
+The goods are recorded as inventory under the agent's custody.
+
+Their reference value is shown in the agent's custody statement.
+
+The transfer does not automatically create an immediately payable cash debt unless the applicable agreement defines such liability.
+
+### Mode B — Credit sale to the agent
+
+The owner can explicitly choose a credit-sale model.
+
+Under this model:
+
+- Goods are sold to the agent on credit.
+- The full agreed amount becomes a monetary receivable at delivery.
+- An installment or settlement deadline is recorded.
+- Payments reduce the agent's monetary debt.
+- The agent becomes responsible for the goods as buyer under the applicable agreement.
+
+The selected policy must appear clearly on the signed document.
+
+Never silently switch between these modes.
+
+## 12.2 Retailer delivery mode
+
+Similarly, retailers must support:
+
+- Consignment
+- Credit sale
+
+Default: Consignment.
+
+In consignment mode, reported sales generate retailer receivables.
+
+In credit-sale mode, the agreed delivered quantity generates receivables immediately.
+
+The mode is stored with every delivery.
+
+---
+
+# PART 13 — DOCUMENT GENERATION AND SIGNATURE MANAGEMENT
+
+This module is mandatory.
+
+The system must generate attractive, formal, printable Persian documents.
+
+Do not rely on generic browser alerts or plain text printouts.
+
+Build professional document templates.
+
+All official documents must:
+
+- Use Persian RTL formatting.
+- Use readable typography.
+- Use the business logo.
+- Have a unique document number.
+- Display the date and time.
+- Show the relevant parties.
+- List all products and quantities.
+- Display unit price and total reference value.
+- Include applicable policy and conditions.
+- Have designated signature areas.
+- Include a document verification QR code when appropriate.
+- Be printable on A4 paper.
+- Support browser print / Save as PDF.
+- Be downloadable.
+- Preserve historical document versions.
+
+Use a reliable Persian-compatible print implementation.
+
+Do not claim that a scanned signature or uploaded document automatically guarantees legal enforceability.
+
+The owner must be able to edit the business's standard document wording through settings, with version history.
+
+---
+
+# PART 14 — FORM 1: WAREHOUSE TO AGENT DELIVERY RECEIPT
+
+Form title:
+
+«رسید تحویل کالا و تعهد نگهداری بازاریاب»
+
+Document code example:
+
+AG-1405-00021
+
+The form must contain:
+
+## Header
+
+- Business logo
+- Business name
+- Document title
+- Document number
+- Issue date and time
+- Document QR verification code
+
+## Recipient information
+
+- Agent full name
+- Agent code
+- Mobile number
+- Identity reference, if configured
+- Delivery location
+
+## Product table
+
+Columns:
+
+- Row number
+- Product name
+- SKU
+- Packaging
+- Net weight
+- Quantity
+- Unit reference price
+- Total reference value
+
+## Total information
+
+- Total package count
+- Total reference value
+- Custody or credit-sale mode
+- Settlement terms, if applicable
+
+## Required declaration text
+
+Generate a professionally worded Persian declaration equivalent to:
+
+«اینجانب دریافت تعداد و مشخصات کالای مندرج در این رسید را تأیید می‌کنم. متعهد می‌شوم کالاهای دریافتی را مطابق قرارداد همکاری و ضوابط تعیین‌شده نگهداری، توزیع و تعیین تکلیف کرده و کلیه تحویل‌های انجام‌شده به فروشگاه‌ها را با اسناد مربوط در سامانه ثبت نمایم. همچنین موظف هستم کالاهای توزیع‌نشده را مطابق ضوابط توافق‌شده بازگردانده یا تعیین تکلیف کنم.»
+
+If credit-sale mode is selected, use a separate declaration explaining the agreed immediate financial obligation and payment terms.
+
+Never display custody mode as an immediate monetary debt.
+
+## Signature fields
+
+- Agent full name and signature
+- Warehouse operator full name and signature
+- Optional witness
+- Administrator approval
+
+## Digital attachment workflow
+
+1. Create delivery draft.
+2. Select agent.
+3. Select products and quantities.
+4. Check available warehouse inventory.
+5. Generate document.
+6. Print it.
+7. Obtain handwritten signatures.
+8. Photograph or scan signed pages.
+9. Upload image/PDF.
+10. Administrator reviews the document.
+11. Approve transfer.
+12. Update agent custody inventory.
+
+A transfer must not be considered verified without the required signed documentation.
+
+Allow a clearly marked exception workflow for emergency transfer, requiring administrator authorization and a subsequent reconciliation deadline.
+
+---
+
+# PART 15 — FORM 2: AGENT TO RETAILER DELIVERY RECEIPT
+
+Form title:
+
+«رسید تحویل امانی محصول به فروشگاه»
+
+Document code example:
+
+RT-1405-00036
+
+Fields:
+
+## Header
+
+- Business identity
+- Document number
+- Date and time
+- Document QR code
+
+## Agent information
+
+- Agent name
+- Agent code
+- Mobile number
+
+## Retailer information
+
+- Store name
+- Store owner or representative
+- Mobile
+- Address
+
+## Product table
+
+- Product name
+- SKU
+- Package weight
+- Quantity delivered
+- Base settlement price
+- Retailer markup
+- Suggested retail price
+- Total reference value
+
+## Delivery policy
+
+Display one of:
+
+- Consignment
+- Credit sale
+
+## Required declaration for consignment
+
+«اینجانب دریافت تعداد و مشخصات کالاهای مندرج در این رسید را تأیید می‌کنم. کالاها مطابق شرایط فروش امانی در اختیار فروشگاه قرار گرفته‌اند. فروشگاه موظف است تعداد کالاهای فروخته‌شده، موجودی باقی‌مانده و کسری یا کالای آسیب‌دیده را در سامانه گزارش کند و مبالغ مربوط به کالاهای فروخته‌شده را طبق شرایط توافق‌شده تسویه نماید. کالاهای فروش‌نرفته نیز مطابق شرایط توافق‌شده قابل بازگشت یا تعیین تکلیف خواهند بود.»
+
+## Signatures
+
+- Retailer owner or authorized representative
+- Sales agent
+- Optional witness
+
+Include:
+- Full name of signer
+- Signer's role
+- Signature
+- Store stamp
+- Date
+
+The system must generate the printable form and accept a photographed or scanned signed copy.
+
+Upon authorized verification:
+
+- Decrease agent custody stock.
+- Increase retailer custody stock.
+- Save the delivery document.
+- Preserve the original agent attribution.
+- Create the relevant consignment record.
+
+---
+
+# PART 16 — FORM 3: AGENT RETURN TO WAREHOUSE
+
+Form title:
+
+«رسید برگشت کالای بازاریاب به انبار»
+
+Fields:
+
+- Agent
+- Warehouse
+- Return date
+- Product
+- Quantity originally received
+- Quantity previously delivered
+- Quantity returned
+- Condition of products
+- Reason for return
+- Reference to original agent receipt
+- Notes
+
+Signatures:
+
+- Agent
+- Warehouse operator
+- Administrator approval
+
+The warehouse return must reduce agent custody and increase warehouse stock only after verification.
+
+Generate a printable, numbered return document.
+
+---
+
+# PART 17 — FORM 4: RETAILER RETURN TO AGENT OR WAREHOUSE
+
+Form title:
+
+«رسید مرجوعی کالا از فروشگاه»
+
+Fields:
+
+- Retailer
+- Agent
+- Original delivery receipt
+- Product
+- Quantity returned
+- Return reason
+- Package condition
+- Date
+- Notes
+
+Signatures:
+
+- Retailer representative
+- Agent or warehouse operator
+
+Support returns:
+- From retailer to agent
+- From retailer directly to warehouse
+
+Do not allow a quantity greater than the eligible retailer custody stock.
+
+Every return must reference its source delivery wherever possible.
+
+---
+
+# PART 18 — FORM 5: RETAILER SALES REPORT
+
+Form title:
+
+«گزارش فروش و موجودی فروشگاه»
+
+This form can be submitted by the retailer or entered by an authorized agent on the retailer's behalf.
+
+Required fields:
+
+- Retailer
+- Reporting period start
+- Reporting period end
+- Product
+- Opening stock
+- Packages received during the period
+- Packages returned
+- Reported quantity sold
+- Physical quantity remaining
+- Damaged quantity
+- Notes
+
+Calculate:
+
+Opening stock
++ Receipts
+- Returns
+- Sales
+- Approved damage adjustments
+= Closing stock.
+
+Validate the calculation.
+
+If reported closing inventory differs from calculated inventory, create a discrepancy instead of silently accepting the difference.
+
+Provide statuses:
+
+- Draft
+- Submitted
+- Confirmed by retailer
+- Verified by administrator
+- Rejected
+- Under review
+
+The retailer must be able to confirm the report.
+
+When a sales report becomes verified:
+
+- Reduce retailer custody inventory by reported sold quantity.
+- Generate corresponding financial receivables in consignment mode.
+- Preserve the source delivery and product price snapshot.
+- Attribute the transaction to the responsible sales agent.
+- Trigger eligible commission logic only when payment is verified.
+
+Do not create duplicate sales when the same report is submitted twice.
+
+---
+
+# PART 19 — FORM 6: RETAILER PAYMENT SUBMISSION
+
+Form title:
+
+«ثبت واریزی فروشگاه»
+
+Fields:
+
+1. Retailer
+2. Payment date
+3. Amount
+4. Payment method
+5. Bank name, optional
+6. Transaction reference number
+7. Related invoices or deliveries
+8. Payment allocation preference
+9. Notes
+10. Bank transfer receipt image/PDF
+
+Payment methods:
+
+- Bank transfer
+- POS
+- Cash
+- Other approved methods
+
+Payment statuses:
+
+- Pending
+- Verified
+- Rejected
+- Reversed
+
+Only verified payments reduce confirmed receivables.
+
+The owner must review and verify submitted payments.
+
+Support partial payments.
+
+Support one payment covering multiple invoices.
+
+Use explicit payment allocation records.
+
+Default allocation policy: oldest eligible receivables first (FIFO), unless the administrator selects specific invoices.
+
+---
+
+# PART 20 — FORM 7: FIELD PAYMENT COLLECTION RECEIPT
+
+If an agent receives cash or another payment instrument directly from a retailer, generate a separate document.
+
+Title:
+
+«رسید دریافت وجه توسط بازاریاب»
+
+Fields:
+
+- Retailer
+- Agent
+- Amount
+- Date and time
+- Payment method
+- Related outstanding balance
+- Reference number
+- Signature of retailer representative
+- Signature of agent
+- Receipt number
+
+The receipt must indicate whether the money was:
+
+- Received by the agent on behalf of the business
+- Transferred directly to the business
+- Received but awaiting administrative verification
+
+A payment collected by an agent must not automatically be treated as money deposited in the owner's bank account.
+
+Track money held by agents separately until it is remitted and reconciled.
+
+---
+
+# PART 21 — FORM 8: AGENT REMITTANCE TO BUSINESS OWNER
+
+Title:
+
+«فرم تحویل وجوه وصول‌شده به مدیریت»
+
+Fields:
+
+- Agent
+- Amount collected
+- Amount previously remitted
+- Outstanding cash held by agent
+- Remittance date
+- Transfer reference
+- Bank receipt image
+- Cash handover confirmation
+- Notes
+
+Signatures:
+
+- Agent
+- Business owner or authorized financial operator
+
+Track the agent's cash custody separately.
+
+The system must reconcile:
+
+Previous cash held
++ Newly collected payments
+- Verified remittances
+= Current cash held by agent.
+
+Do not issue duplicate credit for the same payment.
+
+---
+
+# PART 22 — FORM 9: RETAILER RESTOCKING REQUEST
+
+Title:
+
+«درخواست تأمین مجدد کالا»
+
+Fields:
+
+- Retailer
+- Requesting person
+- Assigned agent
+- Product
+- Current estimated stock
+- Requested quantity
+- Reason
+- Urgency
+- Preferred delivery date
+- Notes
+
+Statuses:
+
+- Draft
+- Submitted
+- Reviewed
+- Approved
+- Rejected
+- In preparation
+- Delivered
+- Cancelled
+
+Allow the agent to submit requests on behalf of retailers.
+
+The administrator can approve the quantity independently of the requested quantity.
+
+An approved request does not change inventory until an actual verified delivery occurs.
+
+---
+
+# PART 23 — FORM 10: FIELD VISIT REPORT
+
+Title:
+
+«گزارش بازدید بازاریاب از فروشگاه»
+
+Fields:
+
+- Agent
+- Retailer
+- Date and time
+- Visit location, optional GPS
+- Observed stock
+- Retailer-reported sales
+- Outstanding balance
+- Payment follow-up status
+- Restocking requirement
+- Competition or market observations
+- Photos, optional
+- Visit notes
+- Next visit date
+- Visit outcome
+
+Visit outcomes:
+
+1. Stock sufficient
+2. Stock low
+3. Stock depleted
+4. Restocking requested
+5. Payment follow-up required
+6. Payment received
+7. Store unavailable
+8. Other
+
+Generate a visit history for each retailer.
+
+Provide a prioritized visit list for agents.
+
+Priority examples:
+
+High:
+- Zero stock and outstanding balance
+- Overdue receivable
+- Unresolved discrepancy
+
+Medium:
+- Low stock
+- Upcoming settlement
+
+Low:
+- Adequate stock
+- No overdue balance
+
+The agent can see the history of previous visits.
+
+---
+
+# PART 24 — FORM 11: INVENTORY DISCREPANCY AND DAMAGE REPORT
+
+Title:
+
+«گزارش کسری، مغایرت یا آسیب کالا»
+
+Fields:
+
+- Reporting user
+- Agent or retailer
+- Product
+- Related delivery document
+- Expected quantity
+- Observed quantity
+- Difference
+- Damaged quantity
+- Lost quantity
+- Reason
+- Evidence photographs
+- Date
+- Notes
+
+Possible resolutions:
+
+- No discrepancy confirmed
+- Return to warehouse
+- Approved damage write-off
+- Financial claim
+- Further investigation
+- Corrected inventory through approved adjustment
+
+Do not silently delete missing or damaged stock.
+
+A financial liability must be generated only under the applicable agreement and after authorized review.
+
+Store the administrator's decision and supporting documents.
+
+---
+
+# PART 25 — FORM 12: INVENTORY COUNT AND RECONCILIATION
+
+Title:
+
+«فرم شمارش موجودی و تطبیق کالا»
+
+Usable by:
+
+- Warehouse operator
+- Sales agent
+- Retailer
+- Administrator
+
+Fields:
+
+- Location
+- Product
+- Expected system quantity
+- Actual counted quantity
+- Difference
+- Count date
+- Person performing count
+- Independent reviewer
+- Notes
+- Supporting photographs
+
+The system creates a reconciliation report.
+
+A difference must require an approved adjustment before changing the financial or inventory records.
+
+---
+
+# PART 26 — FORM 13: AGENT COMMISSION POLICY
+
+Title:
+
+«تعریف قوانین پورسانت بازاریاب»
+
+The administrator must be able to configure commission rules separately for every agent.
+
+Supported commission methods:
+
+1. Percentage of verified collections
+2. Percentage of reported sales
+3. Fixed commission per package sold
+4. Fixed commission per package settled
+5. Fixed commission per newly acquired active retailer
+6. Special campaign commission
+7. Combination of multiple rules
+
+Default initial policy:
+
+Commission based on verified amounts collected from retailers.
+
+Example:
+
+Retailer verified payment: 2,000,000 Toman
+
+Agent commission: 6%
+
+Earned commission: 120,000 Toman
+
+Commission rule fields:
+
+- Rule name
+- Agent
+- Product, optional
+- Sales channel
+- Commission method
+- Rate or fixed amount
+- Effective start date
+- Effective end date
+- Minimum threshold
+- Maximum limit, optional
+- Status
+- Notes
+
+Store a snapshot of the applied rule with every commission transaction.
+
+Changing a commission rule must not affect historical commissions.
+
+---
+
+# PART 27 — FORM 14: COMMISSION APPROVAL AND PAYMENT
+
+Title:
+
+«تأیید و پرداخت پورسانت»
+
+Commission lifecycle:
+
+- Calculated
+- Pending verification
+- Earned
+- Approved
+- Partially paid
+- Paid
+- Cancelled
+- Reversed
+
+The administrator can:
+
+- Review commission calculations.
+- Approve commissions.
+- Reject with a reason.
+- Register partial payments.
+- Register full payments.
+- View payment history.
+- Export agent statements.
+
+Each commission must reference the original payment or sale responsible for generating it.
+
+The same qualifying payment must never generate duplicate commission.
+
+If the source payment is reversed, handle associated commission reversals explicitly.
+
+Keep separate:
+
+- Sales attribution agent
+- Collection activity agent
+
+Allow the business owner to configure whether collection incentives belong to the original sales agent, the collecting agent, or are split under an explicit policy.
+
+---
+
+# PART 28 — CUSTOMER AND DIRECT E-COMMERCE
+
+Create a premium public storefront.
+
+The product page must include:
+
+- Product photograph
+- Product name
+- Product weight
+- Description
+- Packaging information
+- Price
+- Stock availability
+- Purchase button
+- Related products when available
+
+Consumers can access the product through a permanent QR code.
+
+Checkout fields:
+
+1. Full name
+2. Mobile number
+3. Province
+4. City
+5. Full delivery address
+6. Postal code
+7. Optional delivery instructions
+8. Product
+9. Quantity
+10. Unit price snapshot
+11. Discount
+12. Delivery fee
+13. Total payment
+
+Buttons:
+
+- Continue shopping
+- Confirm address
+- Proceed to payment
+- Cancel
+
+Validate phone and postal code formats appropriate for the configured market.
+
+Support guest checkout.
+
+Do not require an unnecessary account.
+
+---
+
+# PART 29 — B2C PAYMENT AND ORDER FORMS
+
+Create an order management form/page.
+
+Order statuses:
+
+- Draft
+- Awaiting payment
+- Payment pending
+- Paid
+- Preparing
+- Ready for dispatch
+- Shipped
+- Delivered
+- Cancelled
+- Refund pending
+- Refunded
+
+Payment statuses:
+
+- Unpaid
+- Pending
+- Paid
+- Failed
+- Refunded
+- Partially refunded
+
+For the first demo, implement a clearly labeled simulated payment gateway.
+
+Never present a simulated payment as a real transaction.
+
+Design an adapter for later integration with an Iranian payment gateway.
+
+After successful payment:
+
+- Verify the payment event.
+- Reserve or allocate the product inventory.
+- Create a fulfillment task.
+- Record the order.
+- Notify the administrator.
+
+Use idempotency to avoid duplicate payment processing.
+
+---
+
+# PART 30 — FORM 15: ORDER FULFILLMENT AND DELIVERY
+
+Title:
+
+«فرم آماده‌سازی و ارسال سفارش مشتری»
+
+Fields:
+
+- Order number
+- Customer
+- Mobile number
+- Delivery address
+- Products
+- Quantities
+- Packing operator
+- Preparation date
+- Courier
+- Shipment tracking number
+- Shipping fee
+- Dispatch time
+- Delivery confirmation
+- Delivery evidence, optional
+- Notes
+
+Allow administrators to update shipment status.
+
+The customer must be able to track their order.
+
+Returned or failed deliveries must have an explicit return workflow.
+
+---
+
+# PART 31 — FORM 16: CANCELLATION AND REFUND
+
+Title:
+
+«فرم لغو سفارش و استرداد وجه»
+
+Fields:
+
+- Order
+- Customer
+- Reason
+- Requested amount
+- Approved refund amount
+- Payment reference
+- Inventory status
+- Refund date
+- Administrator
+- Evidence
+- Notes
+
+Refund operations must generate financial reversals.
+
+Returned physical stock must be independently inspected before becoming available inventory.
+
+---
+
+# PART 32 — QR CODE AND REFERRAL MANAGEMENT
+
+Every product must have a permanent public URL.
+
+Example:
+
+/p/piarom-600
+
+Generate a printable QR code for product packaging.
+
+When scanned, the customer opens the public product page.
+
+The page must offer two separate pathways:
+
+1. خرید برای مصرف شخصی
+2. درخواست همکاری یا خرید فروشگاهی
+
+Retailers can register through the public page.
+
+The system must also generate agent-specific referral links.
+
+Example:
+
+/ref/AGENT-001
+
+Record:
+
+- QR scans
+- Page views
+- Referral visits
+- Retailer registration
+- Customer registration
+- B2C orders
+- Referral agent
+- Campaign identifier
+
+Do not falsely attribute a generic product QR scan to a particular agent.
+
+Use explicit referral tracking and preserve attribution history.
+
+---
+
+# PART 33 — FINANCIAL LEDGER
+
+Implement a traceable financial architecture.
+
+Separate the following:
+
+1. Retailer receivables
+2. Agent financial receivables, when applicable
+3. Agent-held cash
+4. Verified bank receipts
+5. Pending retailer payments
+6. B2C customer payments
+7. Commission liabilities
+8. Commission payments
+9. Operating expenses
+10. Inventory valuation
+11. Returns and reversals
+12. Approved adjustments
+
+Build a transaction ledger that preserves history.
+
+Prefer a properly structured double-entry accounting journal or an equivalent auditable financial subledger.
+
+Do not calculate company cash balance by simply summing all sales.
+
+The system must distinguish:
+
+- Goods delivered
+- Goods sold
+- Receivables generated
+- Money received
+- Money deposited in the business account
+- Commission earned
+- Commission paid
+- Outstanding custody obligations
+
+## Required accounting formulas
+
+For retailer consignment inventory:
+
+Opening stock
++ Verified deliveries
+- Verified sales
+- Approved returns
+- Approved damage adjustments
+= Closing retailer stock.
+
+Retailer receivable:
+
+Opening receivable
++ New consignment sales receivables
++ Approved financial adjustments
+- Verified payments allocated
+- Approved credit notes
+= Closing receivable.
+
+Agent custody:
+
+Opening agent custody
++ Warehouse deliveries
+- Retailer deliveries
+- Warehouse returns
+- Approved adjustments
+= Closing agent custody.
+
+Agent cash:
+
+Opening cash held
++ Verified collections made by agent
+- Verified remittances to owner
+= Closing cash held.
+
+Warehouse inventory:
+
+Opening stock
++ Verified supplier receipts
++ Verified returns from agents
++ Verified returns from retailers
+- Agent deliveries
+- B2C fulfillment
+- Approved write-offs
+= Closing warehouse stock.
+
+Run automated reconciliation tests.
+
+Never silently overwrite balances.
+
+---
+
+# PART 34 — ADMINISTRATOR DASHBOARD
+
+Build a premium executive dashboard.
+
+Page title:
+
+«داشبورد مدیریت کسب‌وکار»
+
+## KPI cards
+
+- کل موجودی اولیه و ورودی
+- موجودی فعلی انبار
+- موجودی نزد بازاریاب‌ها
+- موجودی نزد سوپرمارکت‌ها
+- تعداد بسته‌های فروخته‌شده از طریق سوپرمارکت‌ها
+- فروش مستقیم به مشتریان
+- مجموع مطالبات از فروشگاه‌ها
+- وجوه وصول‌شده
+- مطالبات سررسیدگذشته
+- پورسانت محاسبه‌شده
+- پورسانت پرداخت‌نشده
+- تعداد سوپرمارکت‌های فعال
+- تعداد بازاریاب‌های فعال
+
+## Charts
+
+- Sales trend
+- B2B versus B2C sales
+- Sales by agent
+- Sales by retailer
+- Collection trend
+- Outstanding receivables
+- Agent commission
+- Inventory distribution
+- Geographic sales distribution, where location data exists
+
+## Management tables
+
+1. Top sales agents
+2. Retailers with highest sales
+3. Retailers with overdue receivables
+4. Retailers with zero stock
+5. Agents holding the most inventory
+6. Agents with outstanding custody discrepancies
+7. Latest signed documents
+8. Documents awaiting verification
+9. Pending payment verification
+10. Pending commission approvals
+11. Latest B2C orders
+12. Latest warehouse movements
+
+Provide date, product, agent, and retailer filters.
+
+All metrics must be computed from actual database data.
+
+Never use hardcoded dashboard numbers.
+
+---
+
+# PART 35 — AGENT DASHBOARD
+
+Page title:
+
+«داشبورد بازاریاب»
+
+Mobile-first design.
+
+## KPI cards
+
+- تعداد فروشگاه‌های تحت پوشش
+- تعداد فروشگاه‌های فعال
+- تعداد بازدیدهای این ماه
+- تعداد بسته‌های تحویل‌گرفته‌شده
+- تعداد بسته‌های تحویل‌داده‌شده
+- تعداد بسته‌های تحت مسئولیت فعلی
+- تعداد بسته‌های فروخته‌شده در فروشگاه‌ها
+- مطالبات فروشگاه‌های تحت پوشش
+- پرداخت‌های وصول‌شده
+- تسویه‌های انجام‌شده
+- پورسانت کسب‌شده
+- پورسانت در انتظار تأیید
+- پورسانت پرداخت‌شده
+
+## Main dashboard sections
+
+- Today's visits
+- Retailers requiring payment follow-up
+- Retailers with zero stock
+- Retailers needing restocking
+- Pending delivery documents
+- Agent custody statement
+- Latest collections
+- Commission summary
+- Monthly performance
+
+## Quick actions
+
+- ثبت بازدید
+- ثبت تحویل کالا
+- ثبت گزارش فروش
+- ثبت دریافت وجه
+- ثبت درخواست تأمین کالا
+- ثبت برگشت کالا
+- مشاهده بدهی فروشگاه‌ها
+
+Use large buttons and a simple mobile interface.
+
+---
+
+# PART 36 — RETAILER DASHBOARD
+
+Page title:
+
+«پنل اختصاصی فروشگاه»
+
+Display:
+
+- Current products
+- Received packages
+- Sold packages
+- Remaining inventory
+- Financial outstanding balance
+- Verified payments
+- Pending payments
+- Latest delivery documents
+- Restocking requests
+- Next settlement date
+
+Quick actions:
+
+- ثبت فروش
+- گزارش موجودی
+- درخواست محصول
+- ثبت پرداخت
+- مشاهده اسناد
+- مشاهده بدهی
+
+---
+
+# PART 37 — CUSTOMER EXPERIENCE
+
+Use a visually attractive consumer storefront.
+
+Priority:
+
+- Product photography
+- Clear price
+- Clear package weight
+- Simple purchase process
+- Trustworthy business information
+- Fast mobile experience
+
+Display a premium visual identity inspired by high-quality Iranian dates and agricultural products.
+
+Do not mix administrator-oriented information into the consumer interface.
+
+---
+
+# PART 38 — COMPLETE ADMINISTRATIVE FORM CATALOG
+
+The following forms must be implemented as actual interactive forms, not merely described or shown as static samples.
+
+| No. | Form |
+|---|---|
+| 1 | Product registration |
+| 2 | Product editing |
+| 3 | Product pricing |
+| 4 | Agent registration |
+| 5 | Agent editing |
+| 6 | Retailer registration |
+| 7 | Retailer editing |
+| 8 | Retailer-agent assignment |
+| 9 | Initial inventory entry |
+| 10 | Supplier stock receipt |
+| 11 | Warehouse-to-agent delivery |
+| 12 | Agent delivery acknowledgment |
+| 13 | Agent-to-retailer delivery |
+| 14 | Retailer signed receipt |
+| 15 | Agent return to warehouse |
+| 16 | Retailer return |
+| 17 | Retailer sales report |
+| 18 | Retailer stock count |
+| 19 | Field visit report |
+| 20 | Retailer restocking request |
+| 21 | Retailer payment submission |
+| 22 | Payment verification |
+| 23 | Field payment collection |
+| 24 | Agent remittance |
+| 25 | Agent commission policy |
+| 26 | Commission approval |
+| 27 | Commission payment |
+| 28 | Inventory discrepancy |
+| 29 | Damage/loss report |
+| 30 | Stock adjustment |
+| 31 | Customer registration |
+| 32 | B2C checkout |
+| 33 | Order fulfillment |
+| 34 | Shipment registration |
+| 35 | Order cancellation |
+| 36 | Refund request |
+| 37 | Expense registration |
+| 38 | Cash/bank transaction |
+| 39 | Financial adjustment |
+| 40 | Document review and approval |
+| 41 | User account management |
+| 42 | Role and permission management |
+| 43 | Notification management |
+| 44 | Business settings |
+| 45 | Report filters and export |
+
+Every form must have:
+
+- A descriptive Persian title
+- Clearly labeled fields
+- Required/optional indicators
+- Sensible default values
+- Client-side validation
+- Server-side validation
+- Clear error messages
+- Loading state
+- Successful submission feedback
+- Cancel/back action
+- Appropriate audit record
+- Responsive layout
+
+Use reusable form components.
+
+Do not use browser-native prompts as substitutes for real application forms.
+
+---
+
+# PART 39 — DIGITAL AND PRINTABLE DOCUMENT DESIGN
+
+Create a dedicated document management interface.
+
+The administrator must be able to:
+
+- Search by document number.
+- Filter by agent.
+- Filter by retailer.
+- Filter by document type.
+- Filter by date.
+- Filter by verification status.
+- Preview the original image.
+- Download the document.
+- Print the document.
+- Reject the document with a reason.
+- Approve the document.
+- View linked inventory transactions.
+- View linked financial transactions.
+
+Each document must have a unique identifier.
+
+Suggested numbering:
+
+AG-1405-000001: Agent delivery
+RT-1405-000001: Retailer delivery
+AR-1405-000001: Agent return
+RR-1405-000001: Retailer return
+PAY-1405-000001: Payment receipt
+VIS-1405-000001: Visit report
+DAMAGE-1405-000001: Damage report
+
+Allow configurable numbering rules.
+
+Store document attachments privately.
+
+For each uploaded attachment, save:
+
+- Original filename
+- MIME type
+- Size
+- Uploading user
+- Upload timestamp
+- File checksum/hash
+- Related document
+- Storage key
+- Version
+
+Do not expose permanent public links to signed documents.
+
+---
+
+# PART 40 — NOTIFICATION SYSTEM
+
+Create an in-app notification module.
+
+Agent notifications:
+
+- New retailer assigned
+- New delivery request
+- Retailer payment overdue
+- Retailer stock depleted
+- Document rejected
+- Commission approved
+- Commission paid
+- Inventory discrepancy
+
+Retailer notifications:
+
+- Delivery approved
+- Products dispatched
+- Payment reminder
+- Payment confirmed
+- Restocking approved
+- Order status change
+
+Administrator notifications:
+
+- New retailer registration
+- New consignment request
+- Missing signed document
+- Pending payment verification
+- Overdue receivable
+- Inventory mismatch
+- New B2C purchase
+- Low warehouse stock
+
+Support read/unread status and notification history.
+
+Build adapters for future SMS integration.
+
+For the first release, in-app notifications are sufficient.
+
+---
+
+# PART 41 — REPORTING AND EXPORT
+
+Build downloadable reports in Excel/CSV and printable PDF/HTML formats.
+
+Required reports:
+
+1. Daily sales
+2. Monthly sales
+3. Sales by product
+4. Sales by agent
+5. Sales by retailer
+6. Retailer outstanding balances
+7. Collection history
+8. Agent custody statement
+9. Retailer custody statement
+10. Warehouse stock
+11. Inventory movement history
+12. Damage and loss
+13. Agent commission statement
+14. Commission payment history
+15. B2C orders
+16. Customer purchase history
+17. Document verification status
+18. Visit history
+19. Restocking requests
+20. Expense reports
+
+Filters:
+
+- Date range
+- Product
+- Agent
+- Retailer
+- Customer
+- Channel
+- Document status
+- Payment status
+
+Exported reports must reflect the currently applied filters.
+
+---
+
+# PART 42 — DATABASE SCHEMA
+
+Design a normalized, relational PostgreSQL database.
+
+Consider at least the following tables:
+
+users
+roles
+permissions
+user_roles
+business_settings
+products
+product_categories
+product_prices
+commission_rules
+agents
+retailers
+retailer_agent_assignments
+customers
+inventory_locations
+inventory_balances
+inventory_transactions
+custody_accounts
+custody_transfers
+custody_transfer_items
+delivery_documents
+document_attachments
+document_reviews
+document_signatures
+supplier_receipts
+orders
+order_items
+payments
+payment_allocations
+retailer_sales_reports
+retailer_sales_report_items
+consignment_deliveries
+consignment_delivery_items
+retailer_returns
+agent_returns
+inventory_counts
+inventory_discrepancies
+stock_adjustments
+retailer_visits
+visit_photos
+restock_requests
+financial_accounts
+financial_transactions
+journal_entries
+journal_entry_lines
+commission_records
+commission_payments
+agent_cash_collections
+agent_remittances
+expenses
+shipments
+notifications
+qr_codes
+referrals
+audit_logs
+
+Add:
+
+- Foreign keys
+- Unique constraints
+- Appropriate indexes
+- Timestamps
+- Status fields
+- Referential integrity
+- Document numbering
+- Soft deletion only where appropriate
+- Immutable transaction records where required
+
+Use integer-based monetary values.
+
+Store timestamps in UTC.
+
+Display dates according to Persian calendar settings.
+
+Use database transactions for all important inventory and financial workflows.
+
+Use idempotency keys for payment processing, commission generation, and critical submissions.
+
+Do not make financial balances manually editable.
+
+Use transaction ledgers as the source of truth.
+
+---
+
+# PART 43 — DATA SECURITY
+
+Implement:
+
+- Secure authentication
+- Server-side authorization
+- Role-based data scoping
+- Protected financial actions
+- Secure file uploads
+- Private document storage
+- MIME type validation
+- File size limits
+- Malware scanning interface where available
+- Rate limiting
+- CSRF protection where applicable
+- SQL injection protection through safe ORM usage
+- Audit logging
+- Safe secret handling
+
+Agents must not access another agent's private financial records.
+
+Retailers must not access another retailer's records.
+
+Customers must not access another customer's orders.
+
+Do not rely solely on hiding frontend buttons.
+
+All sensitive operations must be protected server-side.
+
+Do not log passwords, payment secrets, or private document contents.
+
+---
+
+# PART 44 — VISUAL DESIGN REQUIREMENTS
+
+Visual quality is a major requirement.
+
+Create a premium commercial SaaS application.
+
+Brand direction:
+
+- Premium Iranian agricultural product
+- Natural date-palm green
+- Rich dark brown
+- Warm cream
+- Subtle gold
+- Clean white surfaces
+- Carefully controlled shadows
+- Elegant typography
+- Refined icons
+
+Typography:
+
+Use Vazirmatn or an equivalent suitable Persian font.
+
+All internal dashboards must have a coherent design system.
+
+Use:
+
+- Sidebar navigation
+- Responsive top bar
+- Breadcrumbs
+- Clear page titles
+- KPI cards
+- Well-designed tables
+- Charts
+- Empty states
+- Loading skeletons
+- Toast notifications
+- Confirmation dialogs
+- Accessible form controls
+
+Do not overcrowd the interface.
+
+Different roles must have different navigation menus.
+
+Administrator:
+Information-rich desktop dashboard.
+
+Agent:
+Mobile-first operational dashboard.
+
+Retailer:
+Simple ordering and settlement interface.
+
+Consumer:
+Premium e-commerce design.
+
+Avoid excessive animation.
+
+Prioritize readability, speed, and ease of use.
+
+---
+
+# PART 45 — DEMONSTRATION DATA AND SIMULATION
+
+Create a deterministic, internally consistent demo database.
+
+Seed:
+
+- 1 administrator
+- 6 sales agents
+- 12 retailers
+- 20 direct customers
+- 1 initial Piarom Dates product
+- 200 initial packages
+- Multiple deliveries
+- Multiple payment records
+- Multiple commission records
+- Multiple visits
+- Multiple signed-document examples
+- Multiple B2C orders
+
+Use six agents and two assigned retailers per agent.
+
+Each agent initially receives 25 packages from the warehouse.
+
+Total transferred to agents: 150 packages.
+
+Each of the 12 retailers receives 10 packages.
+
+Total transferred to retailers: 120 packages.
+
+Retailers collectively report 70 packages sold.
+
+Retailer remaining stock: 50 packages.
+
+Agents collectively retain 30 packages.
+
+The warehouse retains 30 packages.
+
+Direct consumer sales account for 20 packages.
+
+Final reconciliation:
+
+| Inventory / status | Packages |
+|---|---:|
+| Warehouse | 30 |
+| Agent custody | 30 |
+| Retailer custody | 50 |
+| Sold through retailers | 70 |
+| Sold directly to consumers | 20 |
+| TOTAL | 200 |
+
+Use retailer sales distribution:
+
+- Seven retailers sell 8 packages each.
+- Three retailers sell 4 packages each.
+- Two retailers sell 1 package each.
+
+Total reported B2B sales: 70 packages.
+
+For the example base price of 200,000 Toman:
+
+B2B receivables generated: 14,000,000 Toman.
+
+Include:
+- 10,000,000 Toman in verified collections.
+- 4,000,000 Toman outstanding.
+- A few partial payments.
+- A few fully paid retailers.
+- Several overdue balances.
+- Several pending payment submissions.
+
+Use different agent commission rates, such as 5%, 6%, 7%, and 8%.
+
+Calculate commissions using the actual verified payment allocations.
+
+Direct B2C orders must total 20 packages.
+
+Use a separate configurable B2C price.
+
+Generate deterministic sample histories.
+
+IMPORTANT:
+
+All demonstration data must be mathematically and operationally consistent.
+
+Do not create impossible stock quantities.
+
+Do not generate genuine-looking signatures of real people.
+
+For demo documents, use clearly labeled sample placeholders with a watermark:
+
+«نمونه شبیه‌سازی‌شده — فاقد امضا و اعتبار عملیاتی»
+
+The real application must require actual document uploads for real verified transfers.
+
+Include demo credentials for every role in the README.
+
+Never use demo credentials in production.
+
+---
+
+# PART 46 — REQUIRED ACCEPTANCE TESTS
+
+Do not mark the project complete until the following scenarios work.
+
+## Product and pricing
+
+1. Administrator creates Piarom Dates.
+2. Administrator sets base settlement price.
+3. Administrator sets retailer markup.
+4. System calculates suggested retailer price.
+5. Administrator sets direct B2C price.
+6. Administrator changes prices.
+7. Historical orders retain original prices.
+
+## Agent management
+
+8. Administrator creates an agent.
+9. Administrator assigns an individual commission rule.
+10. Administrator assigns retailers.
+11. Agent logs in.
+12. Agent sees only assigned retailers.
+
+## Warehouse and signed documents
+
+13. Administrator creates a warehouse-to-agent delivery.
+14. Agent receives 25 packages.
+15. System generates a unique delivery receipt.
+16. Document is printed.
+17. A signed document image is uploaded.
+18. Administrator verifies it.
+19. Agent custody increases by 25.
+20. Warehouse stock decreases by 25.
+
+## Retailer delivery
+
+21. Agent delivers 10 packages to a retailer.
+22. System generates a retailer delivery receipt.
+23. Retailer and agent sign the receipt.
+24. The signed image is uploaded.
+25. Administrator verifies the document.
+26. Agent custody decreases by 10.
+27. Retailer custody increases by 10.
+
+## Retailer sales
+
+28. Retailer reports selling 6 packages.
+29. System validates the closing balance.
+30. Retailer stock decreases by 6.
+31. A receivable is generated for 6 packages under consignment mode.
+32. No duplicate receivable is generated.
+
+## Payments and commissions
+
+33. Retailer submits a partial payment.
+34. Administrator verifies the payment.
+35. Receivable decreases correctly.
+36. Payment allocation is recorded.
+37. Eligible agent commission is generated once.
+38. Agent sees the updated commission.
+39. Administrator pays a portion of the commission.
+40. Commission payable balance decreases.
+
+## Field visits
+
+41. Agent records a visit.
+42. Agent records zero retailer stock.
+43. Agent records payment follow-up.
+44. Agent requests restocking.
+45. Administrator can see the visit history.
+
+## Agent money collection
+
+46. Agent records cash collected from a retailer.
+47. System generates a collection receipt.
+48. Agent remits the amount to the owner.
+49. Administrator verifies the remittance.
+50. Agent-held cash balance reconciles.
+
+## Returns and discrepancies
+
+51. Agent returns unused inventory.
+52. Retailer returns unsold inventory.
+53. Agent records damaged goods.
+54. Administrator reviews the discrepancy.
+55. Approved changes create traceable inventory movements.
+
+## B2C
+
+56. Customer opens product page using QR.
+57. Customer orders 3 packages.
+58. Customer enters address.
+59. Demo payment is completed.
+60. Inventory is reserved.
+61. Order is fulfilled.
+62. Shipment status updates.
+63. Customer can track order.
+
+## Security
+
+64. Agent cannot access another agent's data.
+65. Retailer cannot access another retailer's records.
+66. Customer cannot access another customer's order.
+67. Duplicate payment cannot create duplicate commission.
+68. Unverified inventory transfer cannot be silently finalized.
+69. Historical documents cannot be silently deleted.
+70. Financial records can be reconciled.
+
+---
+
+# PART 47 — DEVELOPMENT WORKFLOW
+
+Work in implementation phases.
+
+Do not stop after creating the architecture or initial UI.
+
+PHASE 1:
+Inspect environment, initialize project, establish design system and database.
+
+PHASE 2:
+Authentication, roles, permissions, business settings.
+
+PHASE 3:
+Products, pricing, warehouse and inventory ledger.
+
+PHASE 4:
+Agent and retailer management.
+
+PHASE 5:
+Goods custody, signed documents, delivery, return and discrepancy workflows.
+
+PHASE 6:
+Retailer sales reports, payments, receivables and financial ledger.
+
+PHASE 7:
+Agent CRM, field visits, cash collection and commissions.
+
+PHASE 8:
+B2C e-commerce, QR codes, payment simulation and shipping.
+
+PHASE 9:
+Dashboards, reports, notifications and exports.
+
+PHASE 10:
+Automated tests, security checks, inventory reconciliation, financial reconciliation and deployment.
+
+At the end of every phase:
+
+- Run the application.
+- Run migrations.
+- Check for build errors.
+- Test relevant workflows.
+- Fix existing defects.
+- Preserve working functionality.
+- Update documentation.
+
+Do not create decorative pages while leaving the actual workflows unimplemented.
+
+---
+
+# PART 48 — FINAL DELIVERABLES
+
+Deliver the following:
+
+1. Complete source code.
+2. Working web application.
+3. PostgreSQL schema.
+4. Database migrations.
+5. Seed scripts.
+6. Demo accounts for all user roles.
+7. Fully functional forms.
+8. Printable A4 delivery receipts.
+9. Printable agent responsibility documents.
+10. Printable retailer consignment receipts.
+11. Secure document upload system.
+12. Functional inventory and custody ledger.
+13. Financial management module.
+14. Commission engine.
+15. Admin dashboard.
+16. Agent dashboard.
+17. Retailer dashboard.
+18. Public consumer storefront.
+19. QR Code generator.
+20. Responsive PWA.
+21. Automated tests.
+22. README.
+23. Environment variable template.
+24. Neon setup instructions.
+25. Vercel deployment instructions.
+26. File storage setup instructions.
+27. Known limitations documentation.
+
+Do not state that deployment, banking, payment gateway, SMS, or other external integrations are complete unless they have actually been configured and tested.
+
+---
+
+# PART 49 — FINAL EXECUTION INSTRUCTIONS
+
+Begin by inspecting the current project environment.
+
+If no project exists, initialize one.
+
+If an existing project exists, inspect its structure and preserve useful working components.
+
+Before writing code:
+
+1. Define the application architecture.
+2. Define the database entities and relationships.
+3. Define the financial and inventory invariants.
+4. Define role permissions.
+5. Define the forms and document templates.
+6. Define the implementation sequence.
+
+Then implement the actual application.
+
+Make the first release complete enough that the business owner can demonstrate the following end-to-end scenario:
+
+- The owner creates a product.
+- The owner defines its price and retailer markup.
+- The owner creates a sales agent.
+- The agent receives 25 packages from the warehouse.
+- The agent signs the official goods receipt.
+- The signed receipt is uploaded.
+- The owner verifies the delivery.
+- The agent's custody inventory updates.
+- The agent delivers 10 packages to a grocery store.
+- Both parties sign the delivery receipt.
+- The agent uploads its image.
+- The owner verifies the transfer.
+- The retailer reports selling 6 packages.
+- The system records retailer inventory and receivables.
+- The retailer pays part of its debt.
+- The payment is verified.
+- The agent's eligible commission is calculated.
+- The agent sees their updated commission.
+- The agent visits the retailer and records a new stock observation.
+- The owner sees all operations in the executive dashboard.
+- A direct consumer scans the QR code and places a prepaid order.
+
+The final result must be a coherent and genuinely working business management platform.
+
+Prioritize financial correctness, stock accountability, signed documentation, usability, security, modularity, and excellent visual design.
+
+START BUILDING THE APPLICATION NOW.
