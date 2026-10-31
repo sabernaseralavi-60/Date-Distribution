@@ -328,6 +328,10 @@ export interface RetailerPayment {
   receiptDocumentId?: string;
   idempotencyKey: string;
   notes: string;
+  /** money verified but not absorbed by any open invoice (advance credit) */
+  unallocatedAmount?: number;
+  rejectionReason?: string;
+  reversalReason?: string;
 }
 
 export interface AgentCashCollection {
@@ -362,7 +366,11 @@ export interface CommissionRecord {
   id: string;
   commissionNumber: string;
   agentId: string;
+  /** id of the qualifying source (payment, sales report or retailer) */
   sourcePaymentId: string;
+  sourceType?: 'payment' | 'sales_report' | 'new_retailer';
+  ruleId?: string;
+  clawbackAmount?: number;
   sourceAllocationId?: string;
   retailerId: string;
   productId: string;
@@ -612,6 +620,30 @@ export interface AuditLog {
   timestamp: string;
 }
 
+export interface CashBankTransaction {
+  id: string;
+  number: string;
+  kind: 'bank_deposit' | 'bank_withdrawal' | 'cash_to_bank' | 'bank_to_cash';
+  amount: number;
+  date: string;
+  account: string;
+  referenceNumber: string;
+  recordedBy: string;
+  notes: string;
+}
+
+export interface FinancialAdjustment {
+  id: string;
+  number: string;
+  retailerId?: string;
+  agentId?: string;
+  kind: 'credit_note' | 'debit_note' | 'write_off';
+  amount: number;
+  reason: string;
+  approvedBy: string;
+  createdAt: string;
+}
+
 export interface SaberCommerceState {
   version: number;
   settings: BusinessSettings;
@@ -642,4 +674,6 @@ export interface SaberCommerceState {
   notifications: AppNotification[];
   qrLogs: QrReferralLog[];
   auditLogs: AuditLog[];
+  cashBankTransactions: CashBankTransaction[];
+  financialAdjustments: FinancialAdjustment[];
 }

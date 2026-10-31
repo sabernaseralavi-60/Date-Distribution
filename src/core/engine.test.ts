@@ -1,6 +1,6 @@
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { createInitialSeedState } from './seed';
+import { createInitialSeedState } from './seed.ts';
 import {
   computeInventorySummary,
   computeFinancialSummary,
@@ -22,7 +22,11 @@ import {
   createB2cOrderWithSimulatedPayment,
   updateB2cOrderFulfillment,
   getScopedStateForRole,
-} from './engine';
+  isInvoiceOverdue,
+  refreshOverdueFlags,
+  reverseRetailerPayment,
+} from './engine.ts';
+import { uid } from './runtime.ts';
 
 test('Part 45 & 33: Initial seed state matches exact 200-package & 14M Toman reconciliation', () => {
   const state = createInitialSeedState();
@@ -335,7 +339,98 @@ test('Acceptance Tests 56-66: B2C QR order, inventory reservation, shipment trac
   assert.equal(retailer1Scoped.retailers[0].id, 'rt-1');
   assert.ok(retailer1Scoped.invoices.every((i) => i.retailerId === 'rt-1'));
 
+  // a customer never receives ledger rows (not even their own order): tracking is a separate public lookup by number + mobile
   const customerScoped = getScopedStateForRole(state, 'customer', b2cRes.createdOrder.orderNumber);
-  assert.equal(customerScoped.b2cOrders.length, 1);
-  assert.equal(customerScoped.b2cOrders[0].id, b2cRes.createdOrder.id);
+  assert.equal(customerScoped.b2cOrders.length, 0);
+  assert.equal(customerScoped.customers.length, 0);
+  assert.equal(customerScoped.payments.length, 0);
+  // an agent never sees another agent's rows or the journal; a store sees no commission data
+  assert.equal(agent1Scoped.journalEntries.length, 0);
+  assert.equal(agent1Scoped.agents.length, 1);
+  assert.equal(retailer1Scoped.commissions.length, 0);
+  assert.equal(retailer1Scoped.journalEntries.length, 0);
+});
+
+// ---- findings fixed 2026-10-31 (hand-computed cases, not the engine's own output) ----
+import { setClock } from './runtime.ts';
+
+test('F-006: an advance payment earns no commission and is kept as credit, then applied to the next invoice', () => {
+  let s = createInitialSeedState();
+  const rt = s.retailers.find((r) => !s.invoices.some((i) => i.retailerId === r.id && i.remainingAmount > 0))!;
+  const product = s.products[0];
+  s = submitRetailerPayment(s, { retailerId: rt.id, amount: 300000, method: 'bank_transfer', referenceNumber: 'ADV', autoVerify: true });
+  assert.equal(s.commissions.length, createInitialSeedState().commissions.length, 'no invoice -> no commission');
+  const pay = s.payments.find((p) => p.referenceNumber === 'ADV')!;
+  assert.equal(pay.unallocatedAmount, 300000);
+  const stock = computeInventorySummary(s, product.id).retailerCustodyByRetailer[rt.id];
+  if (stock > 0) {
+    const before = s.commissions.length;
+    s = submitAndVerifyRetailerSalesReport(s, { retailerId: rt.id, productId: product.id, reportedSoldQuantity: 1, idempotencyKey: 'adv-1' });
+    const inv = s.invoices.find((i) => i.sourceReportId && i.retailerId === rt.id && i.createdAt >= pay.paymentDate)!;
+    assert.equal(inv.paidAmount, Math.min(300000, product.baseRetailerPrice), 'the advance is applied to the new invoice');
+    assert.equal(s.commissions.length, before + 1, 'commission is earned on the allocated part only, once');
+    assert.equal(s.payments.find((p) => p.id === pay.id)!.unallocatedAmount, Math.max(0, 300000 - product.baseRetailerPrice));
+  }
+});
+
+test('F-006: overpayment keeps the excess instead of losing it', () => {
+  let s = createInitialSeedState();
+  const rt = s.retailers.find((r) => s.invoices.some((i) => i.retailerId === r.id && i.remainingAmount > 0))!;
+  const open = s.invoices.filter((i) => i.retailerId === rt.id).reduce((n, i) => n + i.remainingAmount, 0);
+  s = submitRetailerPayment(s, { retailerId: rt.id, amount: open + 50000, method: 'bank_transfer', referenceNumber: 'OVER', autoVerify: true });
+  const pay = s.payments.find((p) => p.referenceNumber === 'OVER')!;
+  assert.equal(pay.unallocatedAmount, 50000);
+  assert.equal(s.invoices.filter((i) => i.retailerId === rt.id).reduce((n, i) => n + i.remainingAmount, 0), 0);
+  assert.equal(computeFinancialSummary(s).isReceivablesReconciled, true);
+});
+
+test('F-008: overdue follows the clock and the due date', () => {
+  const base = createInitialSeedState();
+  const inv = base.invoices.find((i) => i.remainingAmount > 0)!;
+  const due = Date.parse(inv.dueDate);
+  try {
+    setClock(() => due - 86400000);
+    assert.equal(isInvoiceOverdue(inv), false);
+    setClock(() => due + 86400000);
+    assert.equal(isInvoiceOverdue(inv), true);
+    assert.equal(refreshOverdueFlags(base).invoices.find((i) => i.id === inv.id)!.isOverdue, true);
+  } finally {
+    setClock(null);
+  }
+});
+
+test('F-007: commission methods - fixed per package, capped, thresholded, and reversed with the payment', () => {
+  let s = createInitialSeedState();
+  const rt = s.retailers.find((r) => s.invoices.some((i) => i.retailerId === r.id && i.remainingAmount > 0))!;
+  const agentId = rt.agentId;
+  s = { ...s, commissionRules: [{ id: 'r-fix', name: 'ثابت هر بسته', agentId, channel: 'B2B', method: 'fixed_per_package_settled', rateOrAmount: 10000, effectiveStartDate: '2020-01-01T00:00:00Z', minThreshold: 0, maxLimit: 25000, isActive: true, notes: '' }] };
+  const inv = s.invoices.find((i) => i.retailerId === rt.id && i.remainingAmount > 0)!;
+  const pay = Math.min(inv.remainingAmount, inv.unitPriceSnapshot * 4);
+  s = submitRetailerPayment(s, { retailerId: rt.id, amount: pay, method: 'bank_transfer', referenceNumber: 'FIX', autoVerify: true });
+  const c = s.commissions.find((x) => x.sourcePaymentId === s.payments.find((p) => p.referenceNumber === 'FIX')!.id)!;
+  assert.equal(c.commissionAmount, Math.min(Math.floor(pay / inv.unitPriceSnapshot) * 10000, 25000), 'packages settled x 10000, capped at 25000');
+  const paymentId = s.payments.find((p) => p.referenceNumber === 'FIX')!.id;
+  s = reverseRetailerPayment(s, { paymentId, reason: 'آزمون' });
+  assert.equal(s.commissions.find((x) => x.id === c.id)!.status, 'reversed');
+  assert.equal(s.invoices.find((i) => i.id === inv.id)!.remainingAmount, inv.remainingAmount);
+});
+
+test('Part 33 formulas: inventory and receivable reconciliation hold after a mixed sequence', () => {
+  const s = createInitialSeedState();
+  const inv = computeInventorySummary(s);
+  assert.equal(inv.isReconciled, true);
+  assert.equal(inv.warehouseStock + inv.totalAgentCustody + inv.totalRetailerCustody + inv.soldThroughRetailers + inv.soldDirectB2c, inv.initialAndInbound);
+  const fin = computeFinancialSummary(s);
+  assert.equal(fin.totalB2bReceivablesGenerated - fin.totalVerifiedB2bCollections, fin.totalOutstandingReceivables);
+});
+
+test('ids never collide even within the same millisecond (F-009)', () => {
+  setClock(() => 1_700_000_000_000);
+  try {
+    const seen = new Set<string>();
+    for (let i = 0; i < 5000; i++) seen.add(uid());
+    assert.equal(seen.size, 5000);
+  } finally {
+    setClock(null);
+  }
 });

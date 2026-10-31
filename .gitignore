@@ -18,3 +18,7 @@ Thumbs.db
 # owner's master prompt stays out of the repo (decision in docs/factory/STATE.md)
 دستور اولیه.txt
 public/assets/aistudio/
+data/
+test-results/
+playwright-report/
+*.tsbuildinfo

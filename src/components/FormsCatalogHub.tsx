@@ -5,7 +5,7 @@ import {
   CustodyPolicyMode,
   VisitOutcome,
   B2cOrderStatus,
-} from '../core/types';
+} from '../core/types.ts';
 import {
   computeInventorySummary,
   computeFinancialSummary,
@@ -28,9 +28,10 @@ import {
   createB2cOrderWithSimulatedPayment,
   updateB2cOrderFulfillment,
   updateBusinessSettings,
-} from '../core/engine';
-import { formatNumberFa, formatToman, toPersianDigits } from '../core/formatters';
+} from '../core/engineClient.ts';
+import { formatNumberFa, formatToman, toPersianDigits } from '../core/formatters.ts';
 import { CheckCircle2, FileText, Printer, Search } from 'lucide-react';
+import { AdminExtraForms } from './AdminExtraForms.tsx';
 
 export interface FormCatalogMeta {
   id: number;
@@ -97,7 +98,8 @@ export const ALL_45_FORMS: FormCatalogMeta[] = [
 interface FormsCatalogHubProps {
   state: SaberCommerceState;
   initialSelectedFormId?: number;
-  onUpdateState: (nextState: SaberCommerceState) => void;
+  onUpdateState: (nextState: SaberCommerceState, message?: string) => void;
+  onOpenReports?: () => void;
   onOpenDocument: (doc: OfficialDocument) => void;
 }
 
@@ -105,6 +107,7 @@ export const FormsCatalogHub: React.FC<FormsCatalogHubProps> = ({
   state,
   initialSelectedFormId = 1,
   onUpdateState,
+  onOpenReports,
   onOpenDocument,
 }) => {
   const [selectedFormId, setSelectedFormId] = useState<number>(initialSelectedFormId);
@@ -187,6 +190,8 @@ export const FormsCatalogHub: React.FC<FormsCatalogHubProps> = ({
   const [b2cMobile, setB2cMobile] = useState('09125556677');
   const [b2cAddress, setB2cAddress] = useState('تهران، میدان محسنی، خیابان بهروز، پلاک ۱۸');
   const [b2cPostal, setB2cPostal] = useState('1911789451');
+  const [b2cProvince, setB2cProvince] = useState('تهران');
+  const [b2cCity, setB2cCity] = useState('تهران');
   const [b2cQty, setB2cQty] = useState(2);
   const [selectedOrderId, setSelectedOrderId] = useState(state.b2cOrders[0]?.id ?? '');
   const [selectedOrderStatus, setSelectedOrderStatus] = useState<B2cOrderStatus>('shipped');
@@ -1534,8 +1539,8 @@ export const FormsCatalogHub: React.FC<FormsCatalogHubProps> = ({
                     const res = createB2cOrderWithSimulatedPayment(state, {
                       customerName: b2cName,
                       customerMobile: b2cMobile,
-                      province: 'تهران',
-                      city: 'تهران',
+                      province: b2cProvince,
+                      city: b2cCity,
                       deliveryAddress: b2cAddress,
                       postalCode: b2cPostal,
                       productId: state.products[0].id,
@@ -1581,6 +1586,14 @@ export const FormsCatalogHub: React.FC<FormsCatalogHubProps> = ({
                     onChange={(e) => setB2cPostal(e.target.value)}
                     className="w-full rounded-lg border border-stone-300 px-3 py-2 font-mono"
                   />
+                </div>
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">استان *</label>
+                  <input type="text" required value={b2cProvince} onChange={(e) => setB2cProvince(e.target.value)} className="w-full rounded-lg border border-stone-300 px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">شهر *</label>
+                  <input type="text" required value={b2cCity} onChange={(e) => setB2cCity(e.target.value)} className="w-full rounded-lg border border-stone-300 px-3 py-2" />
                 </div>
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">تعداد بسته *</label>
@@ -1674,96 +1687,7 @@ export const FormsCatalogHub: React.FC<FormsCatalogHubProps> = ({
 
           {/* FORM 37..45: Finance, Expenses, RBAC, Settings */}
           {selectedFormId >= 37 && selectedFormId !== 40 && (
-            <div className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
-                    نام تجاری کسب‌وکار (قابل ویرایش در سراسر سامانه)
-                  </label>
-                  <input
-                    type="text"
-                    value={bizNameInput}
-                    onChange={(e) => setBizNameInput(e.target.value)}
-                    className="w-full rounded-lg border border-stone-300 px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-stone-700 mb-1">تلفن پشتیبانی</label>
-                  <input
-                    type="text"
-                    value={bizPhoneInput}
-                    onChange={(e) => setBizPhoneInput(e.target.value)}
-                    className="w-full rounded-lg border border-stone-300 px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
-                    شرح هزینه عملیاتی جدید (فرم ۳۷)
-                  </label>
-                  <input
-                    type="text"
-                    value={expTitle}
-                    onChange={(e) => setExpTitle(e.target.value)}
-                    className="w-full rounded-lg border border-stone-300 px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
-                    مبلغ هزینه (تومان)
-                  </label>
-                  <input
-                    type="number"
-                    value={expAmount}
-                    onChange={(e) => setExpAmount(Number(e.target.value))}
-                    className="w-full rounded-lg border border-stone-300 px-3 py-2 tabular-nums"
-                  />
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = updateBusinessSettings(state, {
-                      businessName: bizNameInput,
-                      phone: bizPhoneInput,
-                    });
-                    onUpdateState(next);
-                    showSuccess('تنظیمات مرکزی کسب‌وکار با موفقیت ذخیره شد.');
-                  }}
-                  className="rounded-lg bg-emerald-900 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-950"
-                >
-                  ذخیره تنظیمات کسب‌وکار
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onUpdateState({
-                      ...state,
-                      version: state.version + 1,
-                      expenses: [
-                        {
-                          id: `exp-${Date.now()}`,
-                          expenseNumber: `EXP-1405-000${state.expenses.length + 1}`,
-                          category: 'packaging',
-                          title: expTitle,
-                          amount: expAmount,
-                          expenseDate: new Date().toISOString(),
-                          paidFromAccount: 'حساب جاری بانک ملت',
-                          referenceNumber: `EXP-REF-${Date.now()}`,
-                          recordedBy: 'مدیر سیستم',
-                          notes: '',
-                        },
-                        ...state.expenses,
-                      ],
-                    });
-                    showSuccess('هزینه عملیاتی در دفتر کل مالی ثبت گردید.');
-                  }}
-                  className="rounded-lg border border-stone-300 px-4 py-2 text-xs font-semibold text-stone-800 hover:bg-stone-50"
-                >
-                  ثبت سند هزینه عملیاتی
-                </button>
-              </div>
-            </div>
+            <AdminExtraForms formId={selectedFormId} state={state} onUpdateState={onUpdateState} onOpenReports={onOpenReports} />
           )}
         </div>
       </div>

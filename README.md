@@ -1,59 +1,49 @@
-# سامانه جامع مدیریت توزیع امانی، فروش فروشگاهی و فروش آنلاین «خرمای صابر» (Saber Date Commerce)
+# خرمای صابر — سامانه مدیریت پخش امانی، میدان، انبار، دفتر مالی و فروش مستقیم
 
-پلتفرم یکپارچه مدیریت چرخه توزیع امانی (B2B Consignment)، مدیریت میدانی بازاریابان، کاردکس چندسطحی انبار، دفتر کل مالی دوطرفه (Double-Entry Subledger)، موتور محاسبه پورسانت مبتنی بر وصول وجه، صدور و تأیید اسناد چاپی رسمی A4 و فروشگاه آنلاین مستقیم (B2C) به همراه صفحه فرود QR بسته‌بندی.
+Persian (RTL) web application for a date distributor: consignment distribution to supermarkets through field agents, signed
+delivery documents, a stock ledger with custody levels, receivables with FIFO allocation, commissions, and a direct (B2C) shop
+with a packaging QR landing page.
 
----
+> **Status (honest):** a working multi-user application with real logins, a server-side ledger and a PostgreSQL database.
+> It is built from the owner's master prompt (`دستور اولیه`, not in this repository). The B2C payment gateway is a **labelled
+> simulation** (no money moves), SMS is not connected, and the schema is an auditable ledger aggregate rather than the 56 normalised
+> tables of the prompt. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (limitations) and [docs/factory/VERIFIED.md](docs/factory/VERIFIED.md)
+> (what has actually been tested and what has not).
 
-## ۱. تراز دقیق موجودی و مالی در داده‌های نمونه (Part 45 Reconciliation)
+## What is in it
+* **Roles (enforced on the server):** administrator, sales agent, store (supermarket); customers shop without an account.
+* **Ledger engine** (`src/core/engine.ts`): products and pricing snapshots, immutable stock movements with custody locations, signed
+  documents (printable A4, upload of the signed copy, administrator verification), retailer sales reports, payments with FIFO
+  allocation and advance credit, commission rules (percent of collections / sales, fixed per package, per new store, campaign, caps,
+  thresholds, reversal), agent cash and remittance reconciliation, B2C orders, expenses, cash/bank transactions and financial
+  adjustments, notifications.
+* **Server** (`server/`): Express + PostgreSQL (Neon in production, embedded PGlite for local development), sessions in an HttpOnly
+  cookie, scrypt password hashes, lockout after 5 failures, CSRF header, rate limits, helmet/CSP, audit log, idempotency keys,
+  row-locked transactions, private file storage with real SHA-256 and content sniffing.
+* **UI** (`src/`): Vite + React + Tailwind, Vazirmatn font (self-hosted), PWA.
 
-سامانه در بدو اجرا با داده‌های نمونه کاملاً منطبق و تراز شده بارگذاری می‌شود:
-
-- **محصول اولیه**: خرمای پیارم ممتاز حاجی‌آباد (`PRM-600` — بسته ۶۰۰ گرمی شفاف بهداشتی)
-  - قیمت تمام‌شده: `۱۵۵,۰۰۰ تومان`
-  - قیمت پایه تسویه فروشگاه: `۲۰۰,۰۰۰ تومان`
-  - درصد سود مصوب فروشگاه: `۱۵٪` (قیمت مصرف‌کننده در فروشگاه: `۲۳۰,۰۰۰ تومان`)
-  - قیمت فروش مستقیم آنلاین (B2C): `۲۴۰,۰۰۰ تومان`
-- **تراز دقیق ۲۰۰ بسته موجودی کل**:
-  - `۳۰ بسته`: موجودی آزاد در انبار مرکزی
-  - `۳۰ بسته`: موجودی امانی نزد ۶ بازاریاب (`۶ × ۲۵ = ۱۵۰` بسته دریافتی منهای `۱۲ × ۱۰ = ۱۲۰` بسته تحویلی به فروشگاه‌ها)
-  - `۵۰ بسته`: موجودی امانی نزد ۱۲ سوپرمارکت (`۱۲۰` بسته دریافتی منهای `۷۰` بسته فروش ثبت‌شده)
-  - `۷۰ بسته`: فروش قطعی در سوپرمارکت‌ها (`۷ فروشگاه × ۸ بسته + ۳ فروشگاه × ۴ بسته + ۲ فروشگاه × ۱ بسته`)
-  - `۲۰ بسته`: فروش مستقیم آنلاین به مشتریان نهایی (B2C)
-  - **مجموع کل**: `۳۰ + ۳۰ + ۵۰ + ۷۰ + ۲۰ = ۲۰۰ بسته`
-- **تراز دقیق مالی فروش فروشگاهی (B2B)**:
-  - کل مطالبات ایجادشده از فروش ۷۰ بسته: `۷۰ × ۲۰۰,۰۰۰ = ۱۴,۰۰۰,۰۰۰ تومان`
-  - وصولی‌های تأییدشده نهایی: `۱۰,۰۰۰,۰۰۰ تومان`
-  - مانده مطالبات باز فروشگاه‌ها: `۴,۰۰۰,۰۰۰ تومان`
-
----
-
-## ۲. نقش‌های کاربری و دسترسی‌ها (RBAC)
-
-از نوار بالایی سامانه می‌توانید به صورت آنی بین ۴ نقش زیر جابه‌جا شوید:
-1. **مدیر سیستم (`Admin`)**: دسترسی کامل به داشبورد اجرایی (۱۳ شاخص کلیدی)، مرکز ۴۵ فرم عملیاتی (بخش ۳۸)، ۲۰ گزارش قابل دانلود CSV و چاپ A4 (بخش ۴۱)، دفتر روزنامه دوطرفه، تأیید اسناد امضاشده و تنظیمات مرکزی.
-2. **بازاریاب (`Sales Agent` — کدهای `AG-01` تا `AG-06`)**: پنل موبایل‌فرست با دسترسی محدود (Scoped) صرفاً به فروشگاه‌ها، کاردکس امانی، پورسانت‌ها و وجوه نقد همان بازاریاب + فهرست اولویت‌بندی بازدید روزانه.
-3. **پنل اختصاصی فروشگاه (`Retailer` — کدهای `RT-01` تا `RT-12`)**: دسترسی محدود به موجودی امانی همان سوپرمارکت، ثبت گزارش فروش و شمارش فیزیکی، ثبت فیش پرداخت، درخواست شارژ مجدد و مشاهده رسیدهای امضایی.
-4. **مشتری نهایی و صفحه فرود QR (`/p/piarom-600`)**: دارای دو مسیر مجزا («۱. خرید برای مصرف شخصی» و «۲. درخواست همکاری یا خرید فروشگاهی»)، تسویه‌حساب مهمان با درگاه آزمایشی و رهگیری سفارش.
-
----
-
-## ۳. ساختار فنی و پایگاه داده
-
-- **موتور منطق دامنه و حسابداری (`src/core/engine.ts`)**: پیاده‌سازی خالص، تراکنشی و Idempotent تمام فرمول‌های کاردکس، تسویه FIFO، پورسانت تک‌محرک (صرفاً پس از تأیید نهایی وصول وجه) و جداسازی داده‌های نقش‌ها.
-- **طرحواره کامل PostgreSQL (`drizzle/0000_saber_dates_schema.sql`)**: اسکریپت کامل DDL برای تمام جداول عملیاتی، مالی و حسابرسی (مناسب استقرار روی Neon / Supabase).
-- **ذخیره‌سازی ابری بلادرنگ (`Firebase Auth + Cloud Firestore`)**: همگام‌سازی خودکار وضعیت دفتر کل به همراه قوانین امنیتی تست‌شده (`firestore.rules`).
-
----
-
-## ۴. اجرای تست‌ها و ساخت نسخه نهایی
-
+## Run locally
 ```bash
-# اجرای تست‌های واحد موتور محاسباتی و ۷۰ معیار پذیرش
-npx --yes tsx --test src/core/engine.test.ts
-
-# اجرای تست‌های امنیتی پایگاه داده
-npx --yes tsx --test firestore.rules.test.ts
-
-# ساخت نسخه تولید (Production + PWA Service Worker)
+npm ci
+cp .env.example .env        # then fill SESSION_SECRET, ADMIN_PASSWORD (>= 10 chars) and, for the demo, SEED_DEMO=true + SEED_PASSWORD
 npm run build
+npm start                   # http://localhost:3000  (embedded database in ./data)
 ```
+Demo logins when `SEED_DEMO=true`: administrator = `ADMIN_USERNAME`/`ADMIN_PASSWORD`; agents `agent1`..`agent6` and stores `rt01`..`rt12`
+all use `SEED_PASSWORD`. **Never enable the demo on a real business.** The demo reproduces the reconciliation of the prompt
+(200 packages = 30 warehouse + 30 agents + 50 stores + 70 sold through stores + 20 sold online; receivables 14,000,000, collected 10,000,000,
+open 4,000,000 Toman).
+
+## Test
+```bash
+npm run lint      # tsc --noEmit
+npm test          # engine unit tests (hand-computed cases) + API tests incl. role replay, scoping, idempotency, uploads
+npm run e2e       # real browser against the production build (needs: npx playwright install chromium)
+```
+
+## Deploy
+See [docs/DEPLOY.md](docs/DEPLOY.md): Neon database + Vercel (free tiers), environment variables, file storage, rollback.
+
+## Known limitations
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Short list: simulated payment gateway; no SMS; files are stored in PostgreSQL (3 MB each,
+move to S3/R2 for volume); documents' legal wording must be reviewed by a human before real use; free-tier limits of Vercel and Neon apply.

@@ -23,7 +23,7 @@ import {
   AgentCashCollection,
   AgentRemittance,
   OperatingExpense,
-} from './types';
+} from './types.ts';
 
 export const DEFAULT_AGENT_CONSIGNMENT_DECLARATION =
   'اینجانب دریافت تعداد و مشخصات کالای مندرج در این رسید را تأیید می‌کنم. متعهد می‌شوم کالاهای دریافتی را مطابق قرارداد همکاری و ضوابط تعیین‌شده نگهداری، توزیع و تعیین تکلیف کرده و کلیه تحویل‌های انجام‌شده به فروشگاه‌ها را با اسناد مربوط در سامانه ثبت نمایم. همچنین موظف هستم کالاهای توزیع‌نشده را مطابق ضوابط توافق‌شده بازگردانده یا تعیین تکلیف کنم.';
@@ -948,5 +948,7 @@ export function createInitialSeedState(): SaberCommerceState {
     notifications,
     qrLogs,
     auditLogs,
+    cashBankTransactions: [],
+    financialAdjustments: [],
   };
 }

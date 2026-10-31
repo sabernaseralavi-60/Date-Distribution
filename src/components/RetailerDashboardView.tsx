@@ -11,15 +11,16 @@ import {
   CheckCircle2,
   AlertTriangle,
 } from 'lucide-react';
-import { SaberCommerceState, OfficialDocument } from '../core/types';
+import { SaberCommerceState, OfficialDocument } from '../core/types.ts';
 import {
   computeInventorySummary,
   getScopedStateForRole,
   submitAndVerifyRetailerSalesReport,
   submitRetailerPayment,
   recordRetailerReturn,
-} from '../core/engine';
-import { formatPersianNumber, formatToman, toJalaliDateString } from '../core/formatters';
+  submitRestockRequest,
+} from '../core/engineClient.ts';
+import { formatPersianNumber, formatToman, toJalaliDateString } from '../core/formatters.ts';
 
 interface RetailerDashboardViewProps {
   state: SaberCommerceState;
@@ -118,36 +119,15 @@ export const RetailerDashboardView: React.FC<RetailerDashboardViewProps> = ({
         );
         setActiveModal(null);
       } else if (activeModal === 'restock') {
-        const now = new Date().toISOString();
-        const reqNum = `REQ-${state.settings.documentNumberPrefixYear}-${String(
-          state.restockRequests.length + 1
-        ).padStart(5, '0')}`;
-        const nextState: SaberCommerceState = {
-          ...state,
-          version: state.version + 1,
-          restockRequests: [
-            {
-              id: `req-${Date.now()}`,
-              requestNumber: reqNum,
-              retailerId: currentRetailer.id,
-              requestedByRole: 'retailer',
-              agentId: currentRetailer.agentId,
-              productId: product.id,
-              currentEstimatedStock: currentCustodyStock,
-              requestedQuantity: restockQty,
-              reason: notes || 'درخواست شارژ مجدد از پنل اختصاصی فروشگاه',
-              urgency: currentCustodyStock <= 2 ? 'critical' : 'normal',
-              preferredDeliveryDate: new Date(Date.now() + 2 * 86400000).toISOString(),
-              status: 'submitted',
-              createdAt: now,
-              notes: notes || '',
-            },
-            ...state.restockRequests,
-          ],
-        };
+        const nextState = submitRestockRequest(state, {
+          retailerId: currentRetailer.id,
+          productId: product.id,
+          requestedQuantity: restockQty,
+          reason: notes || 'درخواست شارژ مجدد از پنل اختصاصی فروشگاه',
+        });
         onUpdateState(
           nextState,
-          `درخواست شارژ مجدد (${formatPersianNumber(restockQty)} بسته) با کد ${reqNum} ثبت شد.`
+          `درخواست شارژ مجدد (${formatPersianNumber(restockQty)} بسته) ثبت شد.`
         );
         setActiveModal(null);
       } else if (activeModal === 'return') {

@@ -2,7 +2,7 @@
 
 @layer base {
   html, body {
-    font-family: 'Vazirmatn', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Vazirmatn Variable', 'Vazirmatn', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     direction: rtl;
   }
 

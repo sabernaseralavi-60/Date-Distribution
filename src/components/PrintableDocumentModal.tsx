@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import {
   OfficialDocument,
   SaberCommerceState,
-} from '../core/types';
+} from '../core/types.ts';
 import {
   formatNumberFa,
   formatToman,
   toJalaliDateTime,
   toPersianDigits,
-} from '../core/formatters';
+} from '../core/formatters.ts';
 import { QrCodeSvg } from './QrCodeSvg';
 import { Printer, Upload, CheckCircle2, X, FileCheck2, ShieldAlert } from 'lucide-react';
 
@@ -17,8 +17,8 @@ interface PrintableDocumentModalProps {
   state: SaberCommerceState;
   canVerify: boolean;
   onClose: () => void;
-  onUploadAttachment: (docId: string, file: { filename: string; mimeType: string; sizeBytes: number; previewDataUrl?: string }) => void;
-  onVerifyDocument: (docId: string) => void;
+  onUploadAttachment: (docId: string, file: { filename: string; dataBase64: string }) => Promise<void>;
+  onVerifyDocument: (docId: string) => Promise<void>;
 }
 
 export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
@@ -44,39 +44,25 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
 
     const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
     if (!allowed.includes(file.type)) {
-      setUploadError('فرمت فایل مجاز نیست. لطفاً تصویر (JPG/PNG) یا PDF بارگذاری کنید.');
+      setUploadError('فرمت فایل مجاز نیست. لطفاً تصویر (JPG/PNG/WebP) یا PDF بارگذاری کنید.');
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setUploadError('حجم فایل بیش از حد مجاز (۱۰ مگابایت) است.');
+    if (file.size > 3 * 1024 * 1024) {
+      setUploadError('حجم فایل بیش از حد مجاز (۳ مگابایت) است.');
       return;
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
-        onUploadAttachment(doc.id, {
-          filename: file.name,
-          mimeType: file.type,
-          sizeBytes: file.size,
-          previewDataUrl: typeof reader.result === 'string' ? reader.result : undefined,
-        });
-        setUploadSuccess(`نسخه امضاشده «${file.name}» با موفقیت ثبت و هش امنیتی آن ذخیره شد.`);
+        const data = typeof reader.result === 'string' ? reader.result : '';
+        await onUploadAttachment(doc.id, { filename: file.name, dataBase64: data.slice(data.indexOf(',') + 1) });
+        setUploadSuccess(`نسخهٔ امضاشدهٔ «${file.name}» روی سرور ذخیره شد و هش SHA-256 واقعی آن ثبت گردید.`);
       } catch (err: any) {
         setUploadError(err.message || 'خطا در بارگذاری سند.');
       }
     };
     reader.readAsDataURL(file);
-  };
-
-  const handleSimulateSampleUpload = () => {
-    setUploadError(null);
-    onUploadAttachment(doc.id, {
-      filename: `${doc.documentNumber}-signed-receipt.jpg`,
-      mimeType: 'image/jpeg',
-      sizeBytes: 284500,
-    });
-    setUploadSuccess('تصویر اسکن امضاشده با موفقیت پیوست شد و آماده تأیید نهایی مدیر است.');
   };
 
   return (
@@ -120,22 +106,13 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
               />
             </label>
 
-            {doc.attachments.length === 0 && (
-              <button
-                type="button"
-                onClick={handleSimulateSampleUpload}
-                className="flex items-center gap-1.5 rounded-lg bg-stone-700 px-3 py-2 text-xs font-medium text-stone-100 hover:bg-stone-600 transition-colors"
-              >
-                <span>پیوست سریع اسکن آزمایشی</span>
-              </button>
-            )}
-
             {canVerify && doc.verificationStatus !== 'verified' && (
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
+                  setUploadError(null);
                   try {
-                    onVerifyDocument(doc.id);
+                    await onVerifyDocument(doc.id);
                     setUploadSuccess('سند توسط مدیر تأیید نهایی شد و موجودی انبار/امانی به‌روز گردید.');
                   } catch (err: any) {
                     setUploadError(err.message);
@@ -167,6 +144,16 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
         {uploadSuccess && (
           <div className="no-print bg-emerald-50 border-b border-emerald-200 px-6 py-2.5 text-xs font-semibold text-emerald-900">
             {uploadSuccess}
+          </div>
+        )}
+
+        {doc.attachments.length > 0 && (
+          <div className="no-print border-b border-stone-200 bg-stone-50 px-6 py-2.5 text-xs text-stone-700 flex flex-wrap gap-x-5 gap-y-1">
+            {doc.attachments.map((att) => (
+              <a key={att.id} href={`/api/attachments/${att.id}`} target="_blank" rel="noopener noreferrer" className="underline">
+                نسخهٔ {toPersianDigits(String(att.version))}: {att.originalFilename} (SHA-256: {att.checksumSha256.slice(0, 10)}…)
+              </a>
+            ))}
           </div>
         )}
 

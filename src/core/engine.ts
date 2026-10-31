@@ -20,8 +20,14 @@ import {
   OperatingExpense,
   BusinessSettings,
   UserRole,
-} from './types';
-import { computeSimpleChecksum, isValidIranianMobile, isValidIranianPostalCode } from './formatters';
+  ReceivableInvoice,
+  CommissionRecord,
+  JournalEntry,
+  CashBankTransaction,
+  FinancialAdjustment,
+} from './types.ts';
+import { computeSimpleChecksum, isValidIranianMobile, isValidIranianPostalCode } from './formatters.ts';
+import { actor, nowIso, nowMs, uid } from './runtime.ts';
 
 export interface InventoryReconciliationSummary {
   initialAndInbound: number;
@@ -176,7 +182,7 @@ export function computeFinancialSummary(state: SaberCommerceState): FinancialRec
     .reduce((s, p) => s + p.amount, 0);
   const totalOutstandingReceivables = activeInvoices.reduce((s, i) => s + i.remainingAmount, 0);
   const totalOverdueReceivables = activeInvoices
-    .filter((i) => i.isOverdue && i.remainingAmount > 0)
+    .filter((i) => isInvoiceOverdue(i))
     .reduce((s, i) => s + i.remainingAmount, 0);
   const totalPendingPaymentsAmount = state.payments
     .filter((p) => p.status === 'pending')
@@ -224,8 +230,9 @@ export function computeFinancialSummary(state: SaberCommerceState): FinancialRec
     totalCommissionPaid -
     totalExpenses;
 
+  const unallocatedCredit = state.payments.filter((p) => p.status === 'verified').reduce((s, p) => s + (p.unallocatedAmount ?? 0), 0);
   const isReceivablesReconciled =
-    totalB2bReceivablesGenerated - totalVerifiedB2bCollections === totalOutstandingReceivables;
+    totalB2bReceivablesGenerated - (totalVerifiedB2bCollections - unallocatedCredit) === totalOutstandingReceivables;
 
   return {
     totalB2bReceivablesGenerated,
@@ -287,13 +294,13 @@ export function createProduct(
     throw new Error('قیمت‌های محصول نمی‌توانند منفی باشند.');
   }
 
-  const now = new Date().toISOString();
+  const now = nowIso();
   const suggestedRetailPrice = calculateSuggestedRetailPrice(
     input.baseRetailerPrice,
     input.retailerMarkupPercent
   );
   const newProd: Product = {
-    id: `prod-${Date.now()}`,
+    id: `prod-${uid()}`,
     sku: trimmedSku,
     slug: trimmedSku.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
     name: input.name.trim(),
@@ -319,7 +326,7 @@ export function createProduct(
   const nextInventoryTxs = [...state.inventoryTransactions];
   if (input.initialWarehouseStock && input.initialWarehouseStock > 0) {
     nextInventoryTxs.push({
-      id: `inv-tx-${Date.now()}`,
+      id: `inv-tx-${uid()}`,
       productId: newProd.id,
       movementType: 'initial_stock',
       fromLocationType: 'external',
@@ -329,7 +336,7 @@ export function createProduct(
       quantity: Math.round(input.initialWarehouseStock),
       unitPriceSnapshot: newProd.costPrice,
       createdAt: now,
-      createdBy: 'مدیر سیستم',
+      createdBy: actor().name,
       notes: `ثبت موجودی اولیه برای ${newProd.name}`,
     });
   }
@@ -341,7 +348,7 @@ export function createProduct(
     priceHistory: [
       ...state.priceHistory,
       {
-        id: `ph-${Date.now()}`,
+        id: `ph-${uid()}`,
         productId: newProd.id,
         costPrice: newProd.costPrice,
         baseRetailerPrice: newProd.baseRetailerPrice,
@@ -349,15 +356,15 @@ export function createProduct(
         suggestedRetailPrice: newProd.suggestedRetailPrice,
         directB2cPrice: newProd.directB2cPrice,
         effectiveDate: now,
-        createdBy: 'مدیر سیستم',
+        createdBy: actor().name,
       },
     ],
     inventoryTransactions: nextInventoryTxs,
     auditLogs: [
       {
-        id: `aud-${Date.now()}`,
-        actorRole: 'admin',
-        actorName: 'مدیر سیستم',
+        id: `aud-${uid()}`,
+        actorRole: actor().role,
+        actorName: actor().name,
         action: 'CREATE_PRODUCT',
         entityType: 'Product',
         entityId: newProd.id,
@@ -387,7 +394,7 @@ export function updateProductPricing(
   if (!prod) {
     throw new Error('محصول مورد نظر یافت نشد.');
   }
-  const now = new Date().toISOString();
+  const now = nowIso();
   const suggestedRetailPrice = calculateSuggestedRetailPrice(
     input.baseRetailerPrice,
     input.retailerMarkupPercent
@@ -412,7 +419,7 @@ export function updateProductPricing(
     products: state.products.map((p) => (p.id === prod.id ? updatedProduct : p)),
     priceHistory: [
       {
-        id: `ph-${Date.now()}`,
+        id: `ph-${uid()}`,
         productId: prod.id,
         costPrice: updatedProduct.costPrice,
         baseRetailerPrice: updatedProduct.baseRetailerPrice,
@@ -421,15 +428,15 @@ export function updateProductPricing(
         directB2cPrice: updatedProduct.directB2cPrice,
         campaignPrice: updatedProduct.campaignPrice,
         effectiveDate: now,
-        createdBy: 'مدیر سیستم',
+        createdBy: actor().name,
       },
       ...state.priceHistory,
     ],
     auditLogs: [
       {
-        id: `aud-${Date.now()}`,
-        actorRole: 'admin',
-        actorName: 'مدیر سیستم',
+        id: `aud-${uid()}`,
+        actorRole: actor().role,
+        actorName: actor().name,
         action: 'UPDATE_PRODUCT_PRICING',
         entityType: 'Product',
         entityId: prod.id,
@@ -467,9 +474,9 @@ export function createSalesAgent(
 
   const nextIndex = state.agents.length + 1;
   const code = `AG-${String(nextIndex).padStart(2, '0')}`;
-  const agentId = `ag-${Date.now()}`;
-  const ruleId = `crule-${Date.now()}`;
-  const now = new Date().toISOString();
+  const agentId = `ag-${uid()}`;
+  const ruleId = `crule-${uid()}`;
+  const now = nowIso();
 
   const newRule: CommissionRule = {
     id: ruleId,
@@ -513,9 +520,9 @@ export function createSalesAgent(
     retailers: updatedRetailers,
     auditLogs: [
       {
-        id: `aud-${Date.now()}`,
-        actorRole: 'admin',
-        actorName: 'مدیر سیستم',
+        id: `aud-${uid()}`,
+        actorRole: actor().role,
+        actorName: actor().name,
         action: 'CREATE_AGENT',
         entityType: 'SalesAgent',
         entityId: agentId,
@@ -545,6 +552,8 @@ export function createRetailer(
     deliveryMode?: CustodyPolicyMode;
     creditLimit?: number;
     notes?: string;
+    /** admin = active at once; public/agent = pending until approveRetailer */
+    source?: 'admin' | 'public' | 'agent';
   }
 ): SaberCommerceState {
   if (!input.storeName.trim()) {
@@ -553,10 +562,10 @@ export function createRetailer(
   if (!isValidIranianMobile(input.mobile)) {
     throw new Error('شماره موبایل مسئول فروشگاه معتبر نیست.');
   }
-  const nextIndex = state.retailers.length + 1;
+  const nextIndex = 1 + Math.max(0, ...state.retailers.map((r) => Number(/(\d+)$/.exec(r.code)?.[1] ?? 0)));
   const code = `RT-${String(nextIndex).padStart(2, '0')}`;
-  const retailerId = `rt-${Date.now()}`;
-  const now = new Date().toISOString();
+  const retailerId = `rt-${uid()}`;
+  const now = nowIso();
 
   const newRetailer: Retailer = {
     id: retailerId,
@@ -573,13 +582,13 @@ export function createRetailer(
     agentId: input.agentId,
     acquisitionAgentId: input.acquisitionAgentId || input.agentId,
     registrationDate: now,
-    approvedDate: now,
-    approvedBy: 'مدیر سیستم',
-    status: 'active',
+    approvedDate: input.source && input.source !== 'admin' ? undefined : now,
+    approvedBy: input.source && input.source !== 'admin' ? undefined : actor().name,
+    status: input.source && input.source !== 'admin' ? 'pending' : 'active',
     settlementIntervalDays: input.settlementIntervalDays ?? state.settings.settlementPeriodDays,
     deliveryMode: input.deliveryMode ?? state.settings.defaultRetailerDeliveryMode,
     creditLimit: input.creditLimit ?? 5000000,
-    nextSettlementDate: new Date(Date.now() + 14 * 86400000).toISOString(),
+    nextSettlementDate: new Date(nowMs() + 14 * 86400000).toISOString(),
     hasOverdueReceivable: false,
     notes: input.notes ?? '',
   };
@@ -597,9 +606,9 @@ export function createRetailer(
     agents: updatedAgents,
     auditLogs: [
       {
-        id: `aud-${Date.now()}`,
-        actorRole: 'admin',
-        actorName: 'مدیر سیستم',
+        id: `aud-${uid()}`,
+        actorRole: actor().role,
+        actorName: actor().name,
         action: 'CREATE_RETAILER',
         entityType: 'Retailer',
         entityId: retailerId,
@@ -629,7 +638,7 @@ export function recordSupplierStockReceipt(
   if (!prod) {
     throw new Error('محصول یافت نشد.');
   }
-  const now = new Date().toISOString();
+  const now = nowIso();
   const unitCost = input.unitCostPrice ?? prod.costPrice;
 
   return {
@@ -638,7 +647,7 @@ export function recordSupplierStockReceipt(
     inventoryTransactions: [
       ...state.inventoryTransactions,
       {
-        id: `inv-tx-sup-${Date.now()}`,
+        id: `inv-tx-sup-${uid()}`,
         productId: prod.id,
         movementType: 'supplier_receipt',
         fromLocationType: 'external',
@@ -648,7 +657,7 @@ export function recordSupplierStockReceipt(
         quantity: Math.round(input.quantity),
         unitPriceSnapshot: unitCost,
         createdAt: now,
-        createdBy: 'مدیر انبار',
+        createdBy: actor().name,
         notes: input.notes || `ورود ${input.quantity} بسته از تأمین‌کننده ${input.supplierName}`,
       },
     ],
@@ -685,8 +694,8 @@ export function createWarehouseToAgentDeliveryDraft(
   const seq =
     state.documents.filter((d) => d.documentType === 'agent_delivery').length + 1;
   const docNum = `AG-${state.settings.documentNumberPrefixYear}-${String(seq).padStart(5, '0')}`;
-  const docId = `doc-ag-${Date.now()}`;
-  const now = new Date().toISOString();
+  const docId = `doc-ag-${uid()}`;
+  const now = nowIso();
 
   const createdDocument: OfficialDocument = {
     id: docId,
@@ -709,7 +718,7 @@ export function createWarehouseToAgentDeliveryDraft(
     signerAgentName: agent.fullName,
     signerWarehouseName: 'سرپرست انبار مرکزی',
     emergencyDeadline: input.isEmergencyException
-      ? new Date(Date.now() + 2 * 86400000).toISOString()
+      ? new Date(nowMs() + 2 * 86400000).toISOString()
       : undefined,
     attachments: [],
     notes: input.notes || `پیش‌نویس رسید تحویل ${input.quantity} بسته به ${agent.fullName}`,
@@ -757,8 +766,8 @@ export function createAgentToRetailerDeliveryDraft(
   const seq =
     state.documents.filter((d) => d.documentType === 'retailer_delivery').length + 1;
   const docNum = `RT-${state.settings.documentNumberPrefixYear}-${String(seq).padStart(5, '0')}`;
-  const docId = `doc-rt-${Date.now()}`;
-  const now = new Date().toISOString();
+  const docId = `doc-rt-${uid()}`;
+  const now = nowIso();
 
   const createdDocument: OfficialDocument = {
     id: docId,
@@ -803,6 +812,10 @@ export function uploadSignedDocumentAttachment(
     sizeBytes: number;
     uploadedBy: string;
     previewDataUrl?: string;
+    /** set by the server after it stored the bytes and hashed them (SHA-256 of the real content) */
+    attachmentId?: string;
+    checksumSha256?: string;
+    storageKey?: string;
   }
 ): SaberCommerceState {
   const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -818,18 +831,18 @@ export function uploadSignedDocumentAttachment(
     throw new Error('سند مورد نظر یافت نشد.');
   }
 
-  const now = new Date().toISOString();
+  const now = nowIso();
   const nextVer = doc.attachments.length + 1;
   const newAttachment: DocumentAttachment = {
-    id: `att-${Date.now()}`,
+    id: input.attachmentId ?? `att-${uid()}`,
     documentId: doc.id,
     originalFilename: input.filename,
     mimeType: input.mimeType,
     sizeBytes: input.sizeBytes,
     uploadedBy: input.uploadedBy,
     uploadedAt: now,
-    checksumSha256: computeSimpleChecksum(`${doc.documentNumber}-${input.filename}-${now}`),
-    storageKey: `private/documents/${state.settings.documentNumberPrefixYear}/${doc.documentNumber}-v${nextVer}`,
+    checksumSha256: input.checksumSha256 ?? computeSimpleChecksum(`${doc.documentNumber}-${input.filename}-${now}`),
+    storageKey: input.storageKey ?? `private/documents/${state.settings.documentNumberPrefixYear}/${doc.documentNumber}-v${nextVer}`,
     version: nextVer,
     previewDataUrl: input.previewDataUrl,
   };
@@ -870,7 +883,7 @@ export function verifyOfficialDocument(
   }
 
   const inv = computeInventorySummary(state, doc.productId);
-  const now = new Date().toISOString();
+  const now = nowIso();
   const nextInventoryTxs = [...state.inventoryTransactions];
   const nextConsignmentDeliveries = [...state.consignmentDeliveries];
   const nextInvoices = [...state.invoices];
@@ -881,7 +894,7 @@ export function verifyOfficialDocument(
       throw new Error('موجودی انبار برای نهایی‌سازی این حواله کافی نیست.');
     }
     nextInventoryTxs.push({
-      id: `inv-tx-w2a-${Date.now()}`,
+      id: `inv-tx-w2a-${uid()}`,
       productId: doc.productId,
       movementType: 'warehouse_to_agent',
       fromLocationType: 'warehouse',
@@ -892,7 +905,7 @@ export function verifyOfficialDocument(
       unitPriceSnapshot: doc.unitReferencePrice,
       referenceDocumentId: doc.id,
       createdAt: now,
-      createdBy: input.adminName || 'مدیر سیستم',
+      createdBy: input.adminName || actor().name,
       notes: `تأیید نهایی رسید تحویل به بازاریاب (${doc.documentNumber})`,
     });
   } else if (doc.documentType === 'retailer_delivery') {
@@ -904,7 +917,7 @@ export function verifyOfficialDocument(
       throw new Error('موجودی امانی بازاریاب برای نهایی‌سازی تحویل به فروشگاه کافی نیست.');
     }
     nextInventoryTxs.push({
-      id: `inv-tx-a2r-${Date.now()}`,
+      id: `inv-tx-a2r-${uid()}`,
       productId: doc.productId,
       movementType: 'agent_to_retailer',
       fromLocationType: 'agent',
@@ -915,11 +928,11 @@ export function verifyOfficialDocument(
       unitPriceSnapshot: doc.unitReferencePrice,
       referenceDocumentId: doc.id,
       createdAt: now,
-      createdBy: input.adminName || 'مدیر سیستم',
+      createdBy: input.adminName || actor().name,
       notes: `تأیید نهایی تحویل به فروشگاه (${doc.documentNumber})`,
     });
 
-    const delivId = `deliv-${Date.now()}`;
+    const delivId = `deliv-${uid()}`;
     nextConsignmentDeliveries.unshift({
       id: delivId,
       documentId: doc.id,
@@ -948,7 +961,7 @@ export function verifyOfficialDocument(
     // If credit_sale mode is explicitly selected, create receivable immediately upon delivery verification
     if (doc.policyMode === 'credit_sale') {
       nextInvoices.unshift({
-        id: `inv-cred-${Date.now()}`,
+        id: `inv-cred-${uid()}`,
         invoiceNumber: `INV-1405-C${state.invoices.length + 1}`,
         retailerId: doc.retailerId,
         agentId: doc.agentId,
@@ -959,7 +972,7 @@ export function verifyOfficialDocument(
         totalAmount: doc.totalReferenceValue,
         paidAmount: 0,
         remainingAmount: doc.totalReferenceValue,
-        dueDate: new Date(Date.now() + 14 * 86400000).toISOString(),
+        dueDate: new Date(nowMs() + 14 * 86400000).toISOString(),
         isOverdue: false,
         status: 'open',
         createdAt: now,
@@ -975,7 +988,7 @@ export function verifyOfficialDocument(
         ? {
             ...d,
             verificationStatus: 'verified',
-            approvedByAdmin: input.adminName || 'مدیر سیستم',
+            approvedByAdmin: input.adminName || actor().name,
             approvedAt: now,
           }
         : d
@@ -1012,10 +1025,10 @@ export function recordAgentReturnToWarehouse(
   const product = state.products.find((p) => p.id === input.productId);
   if (!agent || !product) throw new Error('بازاریاب یا محصول یافت نشد.');
 
-  const now = new Date().toISOString();
+  const now = nowIso();
   const seq = state.documents.filter((d) => d.documentType === 'agent_return').length + 1;
   const docNum = `AR-${state.settings.documentNumberPrefixYear}-${String(seq).padStart(5, '0')}`;
-  const docId = `doc-ar-${Date.now()}`;
+  const docId = `doc-ar-${uid()}`;
 
   const returnDoc: OfficialDocument = {
     id: docId,
@@ -1034,7 +1047,7 @@ export function recordAgentReturnToWarehouse(
     isDemoPlaceholder: false,
     signerAgentName: agent.fullName,
     signerWarehouseName: 'سرپرست انبار مرکزی',
-    approvedByAdmin: 'مدیر سیستم',
+    approvedByAdmin: actor().name,
     approvedAt: now,
     attachments: [],
     notes: input.reason,
@@ -1047,7 +1060,7 @@ export function recordAgentReturnToWarehouse(
     inventoryTransactions: [
       ...state.inventoryTransactions,
       {
-        id: `inv-tx-ar-${Date.now()}`,
+        id: `inv-tx-ar-${uid()}`,
         productId: product.id,
         movementType: input.condition === 'damaged' ? 'damaged_stock' : 'agent_return_to_warehouse',
         fromLocationType: 'agent',
@@ -1089,10 +1102,10 @@ export function recordRetailerReturn(
   const product = state.products.find((p) => p.id === input.productId);
   if (!retailer || !product) throw new Error('فروشگاه یا محصول یافت نشد.');
 
-  const now = new Date().toISOString();
+  const now = nowIso();
   const seq = state.documents.filter((d) => d.documentType === 'retailer_return').length + 1;
   const docNum = `RR-${state.settings.documentNumberPrefixYear}-${String(seq).padStart(5, '0')}`;
-  const docId = `doc-rr-${Date.now()}`;
+  const docId = `doc-rr-${uid()}`;
 
   const returnDoc: OfficialDocument = {
     id: docId,
@@ -1111,7 +1124,7 @@ export function recordRetailerReturn(
     verificationStatus: 'verified',
     isDemoPlaceholder: false,
     signerRetailerName: retailer.ownerName,
-    approvedByAdmin: 'مدیر سیستم',
+    approvedByAdmin: actor().name,
     approvedAt: now,
     attachments: [],
     notes: input.reason,
@@ -1124,7 +1137,7 @@ export function recordRetailerReturn(
     inventoryTransactions: [
       ...state.inventoryTransactions,
       {
-        id: `inv-tx-rr-${Date.now()}`,
+        id: `inv-tx-rr-${uid()}`,
         productId: product.id,
         movementType:
           input.destination === 'agent'
@@ -1164,7 +1177,7 @@ export function submitAndVerifyRetailerSalesReport(
   }
   const idemKey =
     input.idempotencyKey ||
-    `sr-${input.retailerId}-${input.productId}-${input.reportedSoldQuantity}-${Date.now()}`;
+    `sr-${input.retailerId}-${input.productId}-${input.reportedSoldQuantity}-${uid()}`;
   if (state.salesReports.some((r) => r.idempotencyKey === idemKey)) {
     return state; // Idempotent: prevent duplicate sales/receivable generation
   }
@@ -1189,12 +1202,27 @@ export function submitAndVerifyRetailerSalesReport(
   const unitSettlementPriceSnapshot =
     latestDelivery?.unitSettlementPriceSnapshot ?? product.baseRetailerPrice;
 
+  // period maths from the ledger (Part 18): opening + received - returned - sold - damaged = closing
+  const previous = state.salesReports
+    .filter((r) => r.retailerId === retailer.id && r.productId === product.id && r.status !== 'rejected')
+    .sort((a, b) => b.periodEnd.localeCompare(a.periodEnd))[0];
+  const periodStart = previous?.periodEnd ?? retailer.registrationDate;
+  const inPeriod = state.inventoryTransactions.filter(
+    (x) => x.productId === product.id && x.createdAt > periodStart && x.createdAt <= nowIso()
+  );
+  const receivedQuantity = inPeriod
+    .filter((x) => x.movementType === 'agent_to_retailer' && x.toLocationId === retailer.id)
+    .reduce((s, x) => s + x.quantity, 0);
+  const returnedQuantity = inPeriod
+    .filter((x) => (x.movementType === 'retailer_return_to_agent' || x.movementType === 'retailer_return_to_warehouse') && x.fromLocationId === retailer.id)
+    .reduce((s, x) => s + x.quantity, 0);
+  const openingStockForPeriod = currentRetailerStock - receivedQuantity + returnedQuantity;
   const calculatedClosingStock = currentRetailerStock - input.reportedSoldQuantity - damaged;
   const physicalCountedStock = input.physicalCountedStock ?? calculatedClosingStock;
   const hasDiscrepancy = physicalCountedStock !== calculatedClosingStock;
   const receivableAmount = input.reportedSoldQuantity * unitSettlementPriceSnapshot;
-  const now = new Date().toISOString();
-  const reportId = `sr-${Date.now()}`;
+  const now = nowIso();
+  const reportId = `sr-${uid()}`;
   const reportNum = `SR-${state.settings.documentNumberPrefixYear}-${String(
     state.salesReports.length + 1
   ).padStart(5, '0')}`;
@@ -1207,11 +1235,11 @@ export function submitAndVerifyRetailerSalesReport(
     retailerId: retailer.id,
     agentId: retailer.agentId,
     productId: product.id,
-    periodStart: now,
+    periodStart,
     periodEnd: now,
-    openingStock: currentRetailerStock,
-    receivedQuantity: 0,
-    returnedQuantity: 0,
+    openingStock: openingStockForPeriod,
+    receivedQuantity,
+    returnedQuantity,
     reportedSoldQuantity: input.reportedSoldQuantity,
     damagedQuantity: damaged,
     calculatedClosingStock,
@@ -1229,7 +1257,7 @@ export function submitAndVerifyRetailerSalesReport(
   const nextDiscrepancies = [...state.discrepancies];
   if (hasDiscrepancy) {
     nextDiscrepancies.unshift({
-      id: `disc-${Date.now()}`,
+      id: `disc-${uid()}`,
       reportNumber: `DAMAGE-${state.settings.documentNumberPrefixYear}-${String(
         state.discrepancies.length + 1
       ).padStart(5, '0')}`,
@@ -1257,7 +1285,7 @@ export function submitAndVerifyRetailerSalesReport(
 
   if (isVerified) {
     nextInventoryTxs.push({
-      id: `inv-tx-sale-${Date.now()}`,
+      id: `inv-tx-sale-${uid()}`,
       productId: product.id,
       movementType: 'retailer_sale',
       fromLocationType: 'retailer',
@@ -1274,7 +1302,7 @@ export function submitAndVerifyRetailerSalesReport(
 
     if (damaged > 0) {
       nextInventoryTxs.push({
-        id: `inv-tx-dmg-${Date.now()}`,
+        id: `inv-tx-dmg-${uid()}`,
         productId: product.id,
         movementType: 'damaged_stock',
         fromLocationType: 'retailer',
@@ -1291,7 +1319,7 @@ export function submitAndVerifyRetailerSalesReport(
     }
 
     if (retailer.deliveryMode === 'consignment') {
-      const invId = `inv-${Date.now()}`;
+      const invId = `inv-${uid()}`;
       const invNum = `INV-${state.settings.documentNumberPrefixYear}-${String(
         state.invoices.length + 1
       ).padStart(5, '0')}`;
@@ -1308,7 +1336,7 @@ export function submitAndVerifyRetailerSalesReport(
         paidAmount: 0,
         remainingAmount: receivableAmount,
         dueDate: new Date(
-          Date.now() + retailer.settlementIntervalDays * 86400000
+          nowMs() + retailer.settlementIntervalDays * 86400000
         ).toISOString(),
         isOverdue: false,
         status: 'open',
@@ -1316,7 +1344,7 @@ export function submitAndVerifyRetailerSalesReport(
       });
 
       nextJournal.unshift({
-        id: `je-sr-${Date.now()}`,
+        id: `je-sr-${uid()}`,
         entryNumber: `JE-${state.settings.documentNumberPrefixYear}-${state.journalEntries.length + 100}`,
         entryDate: now,
         description: `ثبت مطالبات فروش امانی ${retailer.storeName} (${input.reportedSoldQuantity} بسته)`,
@@ -1329,7 +1357,7 @@ export function submitAndVerifyRetailerSalesReport(
     }
   }
 
-  return {
+  let result: SaberCommerceState = {
     ...state,
     version: state.version + 1,
     salesReports: [newReport, ...state.salesReports],
@@ -1338,6 +1366,21 @@ export function submitAndVerifyRetailerSalesReport(
     invoices: nextInvoices,
     journalEntries: nextJournal,
   };
+  if (isVerified && retailer.deliveryMode === 'consignment') {
+    // sale-based commission rules fire here; advance credit of earlier payments is applied to the new invoice
+    const saleComms = commissionsForEvent(result, {
+      kind: 'sale',
+      sourceId: reportId,
+      retailerId: retailer.id,
+      salesAgentId: retailer.agentId,
+      basis: receivableAmount,
+      quantity: input.reportedSoldQuantity,
+      productId: product.id,
+    });
+    if (saleComms.length) result = { ...result, commissions: [...saleComms, ...result.commissions] };
+    result = applyRetailerCredit(result, retailer.id);
+  }
+  return result;
 }
 
 // 6. Retailer Payments, Allocations, Field Collections, Remittances & Commission Engine (Forms 6, 7, 8, 13, 14)
@@ -1368,8 +1411,8 @@ export function submitRetailerPayment(
     return state;
   }
 
-  const now = new Date().toISOString();
-  const payId = `pay-${Date.now()}`;
+  const now = nowIso();
+  const payId = `pay-${uid()}`;
   const payNum = `PAY-${state.settings.documentNumberPrefixYear}-${String(
     state.payments.length + 1
   ).padStart(5, '0')}`;
@@ -1384,7 +1427,7 @@ export function submitRetailerPayment(
     amount: Math.round(input.amount),
     method: input.method,
     bankName: input.bankName,
-    referenceNumber: input.referenceNumber.trim() || `REF-${Date.now()}`,
+    referenceNumber: input.referenceNumber.trim() || `REF-${uid()}`,
     collectedByAgentDirectly: Boolean(input.collectedByAgentDirectly),
     status: 'pending',
     allocations: [],
@@ -1395,7 +1438,7 @@ export function submitRetailerPayment(
   const nextCashCollections = [...state.agentCashCollections];
   if (input.collectedByAgentDirectly) {
     nextCashCollections.unshift({
-      id: `acash-${Date.now()}`,
+      id: `acash-${uid()}`,
       receiptNumber: `PAY-${state.settings.documentNumberPrefixYear}-C${
         state.agentCashCollections.length + 1
       }`,
@@ -1423,133 +1466,409 @@ export function submitRetailerPayment(
   return withPending;
 }
 
-export function verifyRetailerPayment(
+// ---------------------------------------------------------------------------
+// Receivables, allocation and commission (rewritten 2026-10-31, findings F-006..F-008)
+// ---------------------------------------------------------------------------
+
+/** Overdue is derived from the due date and the clock, never stored by hand (F-008). */
+export function isInvoiceOverdue(inv: ReceivableInvoice, at: number = nowMs()): boolean {
+  return inv.status !== 'reversed' && inv.remainingAmount > 0 && Date.parse(inv.dueDate) < at;
+}
+
+/** Re-derives isOverdue / hasOverdueReceivable. Called by the server whenever a state is loaded. */
+export function refreshOverdueFlags(state: SaberCommerceState): SaberCommerceState {
+  const at = nowMs();
+  const invoices = state.invoices.map((i) => {
+    const o = isInvoiceOverdue(i, at);
+    return o === i.isOverdue ? i : { ...i, isOverdue: o };
+  });
+  const overdueRetailers = new Set(invoices.filter((i) => i.isOverdue).map((i) => i.retailerId));
+  const retailers = state.retailers.map((r) => {
+    const o = overdueRetailers.has(r.id);
+    return o === r.hasOverdueReceivable ? r : { ...r, hasOverdueReceivable: o };
+  });
+  return { ...state, invoices, retailers };
+}
+
+interface AllocationResult {
+  invoices: ReceivableInvoice[];
+  allocations: PaymentAllocation[];
+  allocated: number;
+}
+
+/** FIFO (oldest invoice first) unless a target invoice is given. Money that no invoice absorbs is NOT lost: the caller records it. */
+function allocateAmount(
   state: SaberCommerceState,
-  input: {
-    paymentId: string;
-    targetInvoiceId?: string;
-  }
-): SaberCommerceState {
-  const payment = state.payments.find((p) => p.id === input.paymentId);
-  if (!payment) {
-    throw new Error('رکورد پرداخت یافت نشد.');
-  }
-  // Idempotency guard: if already verified or commission already exists for this payment, return state
-  if (
-    payment.status === 'verified' ||
-    state.commissions.some((c) => c.sourcePaymentId === payment.id)
-  ) {
-    return state;
-  }
-
-  const retailer = state.retailers.find((r) => r.id === payment.retailerId);
-  if (!retailer) throw new Error('فروشگاه یافت نشد.');
-
-  // FIFO allocation across open/partially_paid invoices for this retailer
-  let remainingToAllocate = payment.amount;
+  payment: RetailerPayment,
+  amount: number,
+  targetInvoiceId?: string
+): AllocationResult {
+  let remaining = Math.max(0, Math.round(amount));
   const allocations: PaymentAllocation[] = [];
-  const now = new Date().toISOString();
-
-  const sortedInvoices = [...state.invoices].sort((a, b) =>
-    a.createdAt.localeCompare(b.createdAt)
-  );
-
-  const updatedInvoices = sortedInvoices.map((inv) => {
-    if (inv.retailerId !== retailer.id || inv.remainingAmount <= 0 || remainingToAllocate <= 0) {
-      return inv;
-    }
-    if (input.targetInvoiceId && inv.id !== input.targetInvoiceId) {
-      return inv;
-    }
-    const allocAmt = Math.min(inv.remainingAmount, remainingToAllocate);
-    remainingToAllocate -= allocAmt;
-    const newPaid = inv.paidAmount + allocAmt;
-    const newRem = inv.remainingAmount - allocAmt;
-
+  const now = nowIso();
+  const ordered = [...state.invoices].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const invoices = ordered.map((inv) => {
+    if (inv.retailerId !== payment.retailerId || inv.status === 'reversed' || inv.remainingAmount <= 0 || remaining <= 0) return inv;
+    if (targetInvoiceId && inv.id !== targetInvoiceId) return inv;
+    const take = Math.min(inv.remainingAmount, remaining);
+    remaining -= take;
     allocations.push({
-      id: `alloc-${Date.now()}-${inv.id}`,
+      id: `alloc-${uid()}`,
       paymentId: payment.id,
       invoiceId: inv.id,
-      retailerId: retailer.id,
+      retailerId: payment.retailerId,
       agentId: inv.agentId,
-      allocatedAmount: allocAmt,
+      allocatedAmount: take,
       createdAt: now,
     });
-
+    const newRem = inv.remainingAmount - take;
     return {
       ...inv,
-      paidAmount: newPaid,
+      paidAmount: inv.paidAmount + take,
       remainingAmount: newRem,
       status: (newRem === 0 ? 'paid' : 'partially_paid') as 'paid' | 'partially_paid',
       isOverdue: newRem === 0 ? false : inv.isOverdue,
     };
   });
+  return { invoices, allocations, allocated: allocations.reduce((s, a) => s + a.allocatedAmount, 0) };
+}
 
-  // Determine commission attribution agent according to settings policy
-  const attributionAgentId =
-    state.settings.commissionAttributionPolicy === 'collecting_agent' &&
-    payment.collectingAgentId
-      ? payment.collectingAgentId
-      : payment.salesAttributionAgentId;
+type CommissionEvent =
+  | { kind: 'collection'; sourceId: string; retailerId: string; salesAgentId: string; collectingAgentId?: string; basis: number; packagesSettled: number; productId: string; allocationId?: string }
+  | { kind: 'sale'; sourceId: string; retailerId: string; salesAgentId: string; basis: number; quantity: number; productId: string }
+  | { kind: 'new_retailer'; sourceId: string; retailerId: string; salesAgentId: string; productId: string };
 
-  const agent = state.agents.find((a) => a.id === attributionAgentId);
-  const rule = state.commissionRules.find(
-    (r) => r.agentId === attributionAgentId && r.isActive
-  );
-  const ratePercent =
-    rule?.rateOrAmount ??
-    agent?.commissionRatePercent ??
-    state.settings.defaultCommissionRatePercent;
+function ruleApplies(rule: CommissionRule, event: CommissionEvent): boolean {
+  switch (event.kind) {
+    case 'collection':
+      return rule.method === 'verified_collections_percent' || rule.method === 'fixed_per_package_settled' || rule.method === 'campaign_bonus';
+    case 'sale':
+      return rule.method === 'reported_sales_percent' || rule.method === 'fixed_per_package_sold';
+    case 'new_retailer':
+      return rule.method === 'fixed_per_new_retailer';
+  }
+}
 
-  const allocatedTotal =
-    allocations.reduce((s, a) => s + a.allocatedAmount, 0) || payment.amount;
-  const commissionAmount = Math.round((allocatedTotal * ratePercent) / 100);
+function ruleAmount(rule: CommissionRule, event: CommissionEvent): { basis: number; amount: number } {
+  let basis = 0;
+  let amount = 0;
+  if (event.kind === 'collection') {
+    basis = event.basis;
+    if (rule.method === 'fixed_per_package_settled') amount = event.packagesSettled * rule.rateOrAmount;
+    else amount = (event.basis * rule.rateOrAmount) / 100;
+  } else if (event.kind === 'sale') {
+    basis = event.basis;
+    amount = rule.method === 'fixed_per_package_sold' ? event.quantity * rule.rateOrAmount : (event.basis * rule.rateOrAmount) / 100;
+  } else {
+    basis = 0;
+    amount = rule.rateOrAmount;
+  }
+  if (basis < rule.minThreshold) return { basis, amount: 0 };
+  amount = Math.round(amount);
+  if (rule.maxLimit !== undefined && rule.maxLimit > 0) amount = Math.min(amount, rule.maxLimit);
+  return { basis, amount };
+}
 
-  const newCommission = {
-    id: `comm-${Date.now()}`,
-    commissionNumber: `COM-${state.settings.documentNumberPrefixYear}-${String(
-      state.commissions.length + 1
-    ).padStart(5, '0')}`,
-    agentId: attributionAgentId,
-    sourcePaymentId: payment.id,
-    sourceAllocationId: allocations[0]?.id,
-    retailerId: retailer.id,
-    productId: state.products[0]?.id ?? 'prod-piarom-600',
-    baseBasisAmount: allocatedTotal,
-    ruleNameSnapshot: rule?.name ?? `قانون پورسانت وصول (${ratePercent}٪)`,
-    ratePercentSnapshot: ratePercent,
-    commissionAmount,
-    paidAmount: 0,
-    remainingPayable: commissionAmount,
-    status: 'earned' as const,
-    createdAt: now,
-    notes: `محاسبه خودکار پورسانت (${ratePercent}٪) بابت تایید پرداخت ${payment.paymentNumber}`,
-  };
+/**
+ * Creates commission records for one qualifying event (Parts 26-27): one record per matching active rule and beneficiary,
+ * snapshotting the rule, never twice for the same (event, rule, beneficiary). With no rule at all the default policy of the
+ * spec applies: a percentage of verified collections (agent rate, else the business default).
+ */
+function commissionsForEvent(state: SaberCommerceState, event: CommissionEvent): CommissionRecord[] {
+  const policy = state.settings.commissionAttributionPolicy;
+  const at = nowMs();
+  const collecting = event.kind === 'collection' ? event.collectingAgentId : undefined;
+  let beneficiaries: { agentId: string; share: number }[] = [{ agentId: event.salesAgentId, share: 1 }];
+  if (event.kind === 'collection' && collecting) {
+    if (policy === 'collecting_agent') beneficiaries = [{ agentId: collecting, share: 1 }];
+    else if (policy === 'split_50_50' && collecting !== event.salesAgentId) {
+      beneficiaries = [{ agentId: event.salesAgentId, share: 0.5 }, { agentId: collecting, share: 0.5 }];
+    }
+  }
+  const out: CommissionRecord[] = [];
+  const now = nowIso();
+  let seq = state.commissions.length;
+  for (const b of beneficiaries) {
+    const rules = state.commissionRules.filter(
+      (r) =>
+        r.agentId === b.agentId &&
+        r.isActive &&
+        Date.parse(r.effectiveStartDate) <= at &&
+        (!r.effectiveEndDate || Date.parse(r.effectiveEndDate) >= at) &&
+        (!r.productId || r.productId === event.productId) &&
+        (r.channel === 'B2B' || r.channel === 'ALL') &&
+        ruleApplies(r, event)
+    );
+    type Planned = { ruleId: string; name: string; rate: number; basis: number; amount: number };
+    const planned: Planned[] = rules.map((r) => ({ ruleId: r.id, name: r.name, rate: r.rateOrAmount, ...ruleAmount(r, event) }));
+    const agent = state.agents.find((a) => a.id === b.agentId);
+    const hasAnyRule = state.commissionRules.some((r) => r.agentId === b.agentId && r.isActive);
+    if (!hasAnyRule && event.kind === 'collection') {
+      const rate = agent?.commissionRatePercent ?? state.settings.defaultCommissionRatePercent;
+      planned.push({ ruleId: 'default', name: `قانون پورسانت وصول (${rate}٪)`, rate, basis: event.basis, amount: Math.round((event.basis * rate) / 100) });
+    }
+    for (const p of planned) {
+      const amount = Math.round(p.amount * b.share);
+      if (amount <= 0) continue;
+      const dup = state.commissions.some(
+        (c) => c.sourcePaymentId === event.sourceId && (c.ruleId ?? 'default') === p.ruleId && c.agentId === b.agentId && (c.sourceAllocationId ?? '') === ((event.kind === 'collection' && event.allocationId) || '')
+      );
+      if (dup || out.some((c) => c.sourcePaymentId === event.sourceId && c.ruleId === p.ruleId && c.agentId === b.agentId && c.sourceAllocationId === (event.kind === 'collection' ? event.allocationId : undefined))) continue;
+      seq += 1;
+      const status: CommissionRecord['status'] = event.kind === 'collection' ? 'earned' : 'pending_verification';
+      out.push({
+        id: `comm-${uid()}`,
+        commissionNumber: `COM-${state.settings.documentNumberPrefixYear}-${String(seq).padStart(5, '0')}`,
+        agentId: b.agentId,
+        sourcePaymentId: event.sourceId,
+        sourceType: event.kind === 'collection' ? 'payment' : event.kind === 'sale' ? 'sales_report' : 'new_retailer',
+        sourceAllocationId: event.kind === 'collection' ? event.allocationId : undefined,
+        ruleId: p.ruleId,
+        retailerId: event.retailerId,
+        productId: event.productId,
+        baseBasisAmount: p.basis,
+        ruleNameSnapshot: p.name,
+        ratePercentSnapshot: p.rate,
+        commissionAmount: amount,
+        paidAmount: 0,
+        remainingPayable: amount,
+        status,
+        createdAt: now,
+        notes: `پورسانت خودکار (${p.name}) - ${event.kind === 'collection' ? 'وصول تأییدشده' : event.kind === 'sale' ? 'فروش گزارش‌شده' : 'فروشگاه جدید'}`,
+      });
+    }
+  }
+  return out;
+}
+
+function settlementJournal(
+  state: SaberCommerceState,
+  payment: RetailerPayment,
+  retailer: Retailer,
+  allocated: number,
+  unallocated: number,
+  agentName: string
+): JournalEntry[] {
+  const now = nowIso();
+  const entries: JournalEntry[] = [];
+  const debit = payment.collectedByAgentDirectly ? `موجودی نقد نزد بازاریاب — ${agentName}` : 'موجودی بانک مدیریت (تاییدشده)';
+  let n = state.journalEntries.length;
+  if (allocated > 0) {
+    entries.push({
+      id: `je-pay-${uid()}`,
+      entryNumber: `JE-${state.settings.documentNumberPrefixYear}-${++n + 200}`,
+      entryDate: now,
+      description: `تأیید واریزی فروشگاه ${retailer.storeName} (${payment.paymentNumber})`,
+      referenceType: 'payment',
+      referenceId: payment.id,
+      debitAccount: debit,
+      creditAccount: `حساب‌های دریافتنی فروشگاهی — ${retailer.storeName}`,
+      amount: allocated,
+    });
+  }
+  if (unallocated > 0) {
+    entries.push({
+      id: `je-adv-${uid()}`,
+      entryNumber: `JE-${state.settings.documentNumberPrefixYear}-${++n + 200}`,
+      entryDate: now,
+      description: `مازاد واریزی بدون فاکتور باز (پیش‌دریافت) ${retailer.storeName} (${payment.paymentNumber})`,
+      referenceType: 'payment',
+      referenceId: payment.id,
+      debitAccount: debit,
+      creditAccount: `پیش‌دریافت از فروشگاه — ${retailer.storeName}`,
+      amount: unallocated,
+    });
+  }
+  return entries;
+}
+
+function packagesForAllocations(state: SaberCommerceState, allocations: PaymentAllocation[]): number {
+  let pk = 0;
+  for (const a of allocations) {
+    const inv = state.invoices.find((i) => i.id === a.invoiceId);
+    if (inv && inv.unitPriceSnapshot > 0) pk += Math.floor(a.allocatedAmount / inv.unitPriceSnapshot);
+  }
+  return pk;
+}
+
+export function verifyRetailerPayment(
+  state: SaberCommerceState,
+  input: { paymentId: string; targetInvoiceId?: string }
+): SaberCommerceState {
+  const payment = state.payments.find((p) => p.id === input.paymentId);
+  if (!payment) throw new Error('رکورد پرداخت یافت نشد.');
+  if (payment.status === 'verified') return state; // idempotent
+  if (payment.status !== 'pending') throw new Error('فقط پرداخت در انتظار بررسی قابل تأیید است.');
+  const retailer = state.retailers.find((r) => r.id === payment.retailerId);
+  if (!retailer) throw new Error('فروشگاه یافت نشد.');
+
+  const res = allocateAmount(state, payment, payment.amount, input.targetInvoiceId);
+  const unallocated = payment.amount - res.allocated;
+  const agentName = state.agents.find((a) => a.id === (payment.collectingAgentId ?? payment.salesAttributionAgentId))?.fullName ?? '';
+  const withInvoices: SaberCommerceState = { ...state, invoices: res.invoices };
+  const newCommissions =
+    res.allocated > 0
+      ? commissionsForEvent(withInvoices, {
+          kind: 'collection',
+          sourceId: payment.id,
+          retailerId: retailer.id,
+          salesAgentId: payment.salesAttributionAgentId,
+          collectingAgentId: payment.collectingAgentId,
+          basis: res.allocated,
+          packagesSettled: packagesForAllocations(withInvoices, res.allocations),
+          productId: res.invoices.find((i) => i.id === res.allocations[0]?.invoiceId)?.productId ?? state.products[0]?.id ?? '',
+          allocationId: undefined,
+        })
+      : [];
 
   return {
     ...state,
     version: state.version + 1,
     payments: state.payments.map((p) =>
-      p.id === payment.id ? { ...p, status: 'verified', allocations } : p
+      p.id === payment.id ? { ...p, status: 'verified', allocations: res.allocations, unallocatedAmount: unallocated } : p
     ),
-    invoices: updatedInvoices,
-    commissions: [newCommission, ...state.commissions],
+    invoices: res.invoices,
+    commissions: [...newCommissions, ...state.commissions],
+    journalEntries: [...settlementJournal(state, payment, retailer, res.allocated, unallocated, agentName), ...state.journalEntries],
+    auditLogs: [
+      {
+        id: `aud-${uid()}`,
+        actorRole: actor().role,
+        actorName: actor().name,
+        action: 'VERIFY_PAYMENT',
+        entityType: 'RetailerPayment',
+        entityId: payment.id,
+        details: `تأیید ${payment.paymentNumber}: تخصیص ${res.allocated}، مازاد ${unallocated}`,
+        timestamp: nowIso(),
+      },
+      ...state.auditLogs,
+    ],
+  };
+}
+
+/** Applies the leftover (advance) money of verified payments to invoices that were created later. */
+export function applyRetailerCredit(state: SaberCommerceState, retailerId: string): SaberCommerceState {
+  let s = state;
+  const withCredit = state.payments
+    .filter((p) => p.retailerId === retailerId && p.status === 'verified' && (p.unallocatedAmount ?? 0) > 0)
+    .sort((a, b) => a.paymentDate.localeCompare(b.paymentDate));
+  for (const p0 of withCredit) {
+    const payment = s.payments.find((p) => p.id === p0.id)!;
+    const credit = payment.unallocatedAmount ?? 0;
+    if (credit <= 0) continue;
+    const res = allocateAmount(s, payment, credit);
+    if (res.allocated === 0) continue;
+    const retailer = s.retailers.find((r) => r.id === retailerId)!;
+    const withInv: SaberCommerceState = { ...s, invoices: res.invoices };
+    const comms = commissionsForEvent(withInv, {
+      kind: 'collection',
+      sourceId: payment.id,
+      retailerId,
+      salesAgentId: payment.salesAttributionAgentId,
+      collectingAgentId: payment.collectingAgentId,
+      basis: res.allocated,
+      packagesSettled: packagesForAllocations(withInv, res.allocations),
+      productId: res.invoices.find((i) => i.id === res.allocations[0]?.invoiceId)?.productId ?? s.products[0]?.id ?? '',
+      allocationId: res.allocations[0]?.id,
+    });
+    const agentName = s.agents.find((a) => a.id === (payment.collectingAgentId ?? payment.salesAttributionAgentId))?.fullName ?? '';
+    const journal: JournalEntry = {
+      id: `je-adv-apply-${uid()}`,
+      entryNumber: `JE-${s.settings.documentNumberPrefixYear}-${s.journalEntries.length + 201}`,
+      entryDate: nowIso(),
+      description: `تخصیص پیش‌دریافت ${payment.paymentNumber} به فاکتور جدید ${retailer.storeName}`,
+      referenceType: 'payment',
+      referenceId: payment.id,
+      debitAccount: `پیش‌دریافت از فروشگاه — ${retailer.storeName}`,
+      creditAccount: `حساب‌های دریافتنی فروشگاهی — ${retailer.storeName}`,
+      amount: res.allocated,
+    };
+    void agentName;
+    s = {
+      ...s,
+      invoices: res.invoices,
+      payments: s.payments.map((p) =>
+        p.id === payment.id ? { ...p, allocations: [...p.allocations, ...res.allocations], unallocatedAmount: credit - res.allocated } : p
+      ),
+      commissions: [...comms, ...s.commissions],
+      journalEntries: [journal, ...s.journalEntries],
+    };
+  }
+  return s === state ? state : { ...s, version: state.version + 1 };
+}
+
+export function rejectRetailerPayment(state: SaberCommerceState, input: { paymentId: string; reason: string }): SaberCommerceState {
+  const payment = state.payments.find((p) => p.id === input.paymentId);
+  if (!payment) throw new Error('رکورد پرداخت یافت نشد.');
+  if (payment.status !== 'pending') throw new Error('فقط پرداخت در انتظار بررسی قابل رد است.');
+  if (!input.reason.trim()) throw new Error('دلیل رد پرداخت الزامی است.');
+  return {
+    ...state,
+    version: state.version + 1,
+    payments: state.payments.map((p) => (p.id === payment.id ? { ...p, status: 'rejected', rejectionReason: input.reason.trim() } : p)),
+  };
+}
+
+/** Reverses a verified payment: invoices are restored, source commissions are reversed explicitly (Part 27). */
+export function reverseRetailerPayment(state: SaberCommerceState, input: { paymentId: string; reason: string }): SaberCommerceState {
+  const payment = state.payments.find((p) => p.id === input.paymentId);
+  if (!payment) throw new Error('رکورد پرداخت یافت نشد.');
+  if (payment.status !== 'verified') throw new Error('فقط پرداخت تأییدشده قابل ابطال است.');
+  if (!input.reason.trim()) throw new Error('دلیل ابطال الزامی است.');
+  const byInvoice = new Map<string, number>();
+  for (const a of payment.allocations) byInvoice.set(a.invoiceId, (byInvoice.get(a.invoiceId) ?? 0) + a.allocatedAmount);
+  const invoices = state.invoices.map((inv) => {
+    const back = byInvoice.get(inv.id);
+    if (!back) return inv;
+    const paid = inv.paidAmount - back;
+    const rem = inv.remainingAmount + back;
+    return { ...inv, paidAmount: paid, remainingAmount: rem, status: (paid <= 0 ? 'open' : 'partially_paid') as 'open' | 'partially_paid' };
+  });
+  const now = nowIso();
+  const commissions = state.commissions.map((c) =>
+    c.sourcePaymentId === payment.id && c.sourceType !== 'sales_report' && c.status !== 'reversed' && c.status !== 'cancelled'
+      ? { ...c, status: 'reversed' as const, clawbackAmount: c.paidAmount, remainingPayable: 0, notes: `${c.notes} | ابطال: ${input.reason.trim()}` }
+      : c
+  );
+  return {
+    ...state,
+    version: state.version + 1,
+    payments: state.payments.map((p) => (p.id === payment.id ? { ...p, status: 'reversed', reversalReason: input.reason.trim(), unallocatedAmount: 0 } : p)),
+    invoices,
+    commissions,
     journalEntries: [
       {
-        id: `je-pay-${Date.now()}`,
-        entryNumber: `JE-${state.settings.documentNumberPrefixYear}-${state.journalEntries.length + 200}`,
+        id: `je-rev-${uid()}`,
+        entryNumber: `JE-${state.settings.documentNumberPrefixYear}-${state.journalEntries.length + 300}`,
         entryDate: now,
-        description: `تأیید واریزی فروشگاه ${retailer.storeName} (${payment.paymentNumber})`,
-        referenceType: 'payment',
+        description: `ابطال واریزی ${payment.paymentNumber}: ${input.reason.trim()}`,
+        referenceType: 'adjustment',
         referenceId: payment.id,
-        debitAccount: payment.collectedByAgentDirectly
-          ? `موجودی نقد نزد بازاریاب — ${agent?.fullName ?? ''}`
-          : 'موجودی بانک مدیریت (تاییدشده)',
-        creditAccount: `حساب‌های دریافتنی فروشگاهی — ${retailer.storeName}`,
+        debitAccount: `حساب‌های دریافتنی فروشگاهی`,
+        creditAccount: payment.collectedByAgentDirectly ? 'موجودی نقد نزد بازاریاب' : 'موجودی بانک مدیریت (تاییدشده)',
         amount: payment.amount,
       },
       ...state.journalEntries,
     ],
+  };
+}
+
+export function approveCommission(state: SaberCommerceState, input: { commissionId: string; approve: boolean; reason?: string }): SaberCommerceState {
+  const c = state.commissions.find((x) => x.id === input.commissionId);
+  if (!c) throw new Error('رکورد پورسانت یافت نشد.');
+  if (!['calculated', 'pending_verification', 'earned'].includes(c.status)) throw new Error('این پورسانت در وضعیت قابل تأیید نیست.');
+  if (!input.approve && !(input.reason ?? '').trim()) throw new Error('دلیل رد پورسانت الزامی است.');
+  const now = nowIso();
+  return {
+    ...state,
+    version: state.version + 1,
+    commissions: state.commissions.map((x) =>
+      x.id === c.id
+        ? input.approve
+          ? { ...x, status: 'approved' as const, approvedAt: now }
+          : { ...x, status: 'cancelled' as const, remainingPayable: 0, notes: `${x.notes} | رد: ${(input.reason ?? '').trim()}` }
+        : x
+    ),
   };
 }
 
@@ -1560,20 +1879,23 @@ export function submitAndVerifyAgentRemittance(
     remittedAmount: number;
     transferReference: string;
     notes?: string;
+    /** false = pending until an administrator verifies it (agents) */
+    autoVerify?: boolean;
   }
 ): SaberCommerceState {
   if (input.remittedAmount <= 0) {
     throw new Error('مبلغ تحویلی به مدیریت باید بیشتر از صفر باشد.');
   }
   const fin = computeFinancialSummary(state);
-  const currentHeld = fin.agentCashByAgent[input.agentId]?.held ?? 0;
+  const pendingRemitted = state.agentRemittances.filter((r) => r.agentId === input.agentId && r.status === 'pending').reduce((s, r) => s + r.remittedAmount, 0);
+  const currentHeld = (fin.agentCashByAgent[input.agentId]?.held ?? 0) - pendingRemitted;
   if (input.remittedAmount > currentHeld) {
     throw new Error(
       `مبلغ تحویلی (${input.remittedAmount}) نمی‌تواند بیشتر از وجه نقد نزد بازاریاب (${currentHeld}) باشد.`
     );
   }
-  const now = new Date().toISOString();
-  const remId = `arem-${Date.now()}`;
+  const now = nowIso();
+  const remId = `arem-${uid()}`;
   const remNum = `REM-${state.settings.documentNumberPrefixYear}-${String(
     state.agentRemittances.length + 1
   ).padStart(4, '0')}`;
@@ -1591,13 +1913,31 @@ export function submitAndVerifyAgentRemittance(
         remittedAmount: Math.round(input.remittedAmount),
         remainingCashHeld: currentHeld - Math.round(input.remittedAmount),
         remittanceDate: now,
-        transferReference: input.transferReference.trim() || `REM-TRX-${Date.now()}`,
-        status: 'verified',
-        verifiedBy: 'مدیر سیستم',
+        transferReference: input.transferReference.trim() || `REM-TRX-${uid()}`,
+        status: input.autoVerify === false ? 'pending' : 'verified',
+        verifiedBy: input.autoVerify === false ? undefined : actor().name,
         notes: input.notes || 'تسویه و واریز وجوه وصولی بازاریاب به حساب مدیریت',
       },
       ...state.agentRemittances,
     ],
+  };
+}
+
+export function verifyAgentRemittance(state: SaberCommerceState, input: { remittanceId: string; approve: boolean; reason?: string }): SaberCommerceState {
+  const r = state.agentRemittances.find((x) => x.id === input.remittanceId);
+  if (!r) throw new Error('رسید تحویل وجه یافت نشد.');
+  if (r.status !== 'pending') throw new Error('این رسید قبلاً بررسی شده است.');
+  if (!input.approve && !(input.reason ?? '').trim()) throw new Error('دلیل رد الزامی است.');
+  return {
+    ...state,
+    version: state.version + 1,
+    agentRemittances: state.agentRemittances.map((x) =>
+      x.id === r.id
+        ? input.approve
+          ? { ...x, status: 'verified' as const, verifiedBy: actor().name }
+          : { ...x, status: 'rejected' as const, verifiedBy: actor().name, notes: `${x.notes} | رد: ${(input.reason ?? '').trim()}` }
+        : x
+    ),
   };
 }
 
@@ -1615,11 +1955,14 @@ export function payAgentCommission(
   }
   const comm = state.commissions.find((c) => c.id === input.commissionId);
   if (!comm) throw new Error('رکورد پورسانت یافت نشد.');
+  if (!['earned', 'approved', 'partially_paid'].includes(comm.status)) {
+    throw new Error('پورسانت باید ابتدا تأیید شود یا به وضعیت «کسب‌شده» برسد.');
+  }
   if (input.amountToPay > comm.remainingPayable) {
     throw new Error('مبلغ پرداختی بیشتر از مانده قابل پرداخت پورسانت است.');
   }
 
-  const now = new Date().toISOString();
+  const now = nowIso();
   const newPaid = comm.paidAmount + Math.round(input.amountToPay);
   const newRem = comm.remainingPayable - Math.round(input.amountToPay);
 
@@ -1639,7 +1982,7 @@ export function payAgentCommission(
     ),
     commissionPayments: [
       {
-        id: `cpay-${Date.now()}`,
+        id: `cpay-${uid()}`,
         paymentNumber: `CP-${state.settings.documentNumberPrefixYear}-${String(
           state.commissionPayments.length + 1
         ).padStart(4, '0')}`,
@@ -1647,8 +1990,8 @@ export function payAgentCommission(
         agentId: comm.agentId,
         amountPaid: Math.round(input.amountToPay),
         paymentDate: now,
-        referenceNumber: input.referenceNumber.trim() || `SHABA-${Date.now()}`,
-        paidBy: 'مدیر سیستم',
+        referenceNumber: input.referenceNumber.trim() || `SHABA-${uid()}`,
+        paidBy: actor().name,
         notes: input.notes || 'پرداخت پورسانت بازاریاب',
       },
       ...state.commissionPayments,
@@ -1679,7 +2022,7 @@ export function recordFieldVisit(
     .filter((i) => i.retailerId === retailer.id && i.status !== 'reversed')
     .reduce((s, i) => s + i.remainingAmount, 0);
 
-  const now = new Date().toISOString();
+  const now = nowIso();
   const visitNum = `VIS-${state.settings.documentNumberPrefixYear}-${String(
     state.visits.length + 1
   ).padStart(5, '0')}`;
@@ -1687,7 +2030,7 @@ export function recordFieldVisit(
   const nextRestockRequests = [...state.restockRequests];
   if (input.restockingNeededCount > 0) {
     nextRestockRequests.unshift({
-      id: `req-${Date.now()}`,
+      id: `req-${uid()}`,
       requestNumber: `REQ-${state.settings.documentNumberPrefixYear}-${String(
         state.restockRequests.length + 1
       ).padStart(5, '0')}`,
@@ -1711,7 +2054,7 @@ export function recordFieldVisit(
     version: state.version + 1,
     visits: [
       {
-        id: `vis-${Date.now()}`,
+        id: `vis-${uid()}`,
         visitNumber: visitNum,
         agentId: input.agentId,
         retailerId: retailer.id,
@@ -1768,7 +2111,7 @@ export function createB2cOrderWithSimulatedPayment(
 
   const idemKey =
     input.idempotencyKey ||
-    `b2c-${input.customerMobile}-${input.productId}-${input.quantity}-${Date.now()}`;
+    `b2c-${input.customerMobile}-${input.productId}-${input.quantity}-${uid()}`;
   const existingOrder = state.b2cOrders.find((o) => o.idempotencyKey === idemKey);
   if (existingOrder) {
     return { nextState: state, createdOrder: existingOrder };
@@ -1784,14 +2127,14 @@ export function createB2cOrderWithSimulatedPayment(
     );
   }
 
-  const now = new Date().toISOString();
+  const now = nowIso();
   const unitPrice = product.campaignPrice ?? product.directB2cPrice;
   const subtotal = unitPrice * input.quantity;
   const shippingFee =
     subtotal >= state.settings.freeShippingThreshold ? 0 : state.settings.defaultShippingFee;
   const totalPayable = subtotal + shippingFee;
 
-  const ordId = `ord-${Date.now()}`;
+  const ordId = `ord-${uid()}`;
   const ordNum = `ORD-${state.settings.documentNumberPrefixYear}-${String(
     state.b2cOrders.length + 1
   ).padStart(5, '0')}`;
@@ -1803,7 +2146,7 @@ export function createB2cOrderWithSimulatedPayment(
   const createdOrder: B2cOrder = {
     id: ordId,
     orderNumber: ordNum,
-    customerId: `cu-${Date.now()}`,
+    customerId: `cu-${uid()}`,
     customerName: input.customerName.trim(),
     customerMobile: input.customerMobile.trim(),
     province: input.province.trim() || 'تهران',
@@ -1820,7 +2163,7 @@ export function createB2cOrderWithSimulatedPayment(
     totalPayable,
     orderStatus: 'paid',
     paymentStatus: 'paid',
-    simulatedPaymentRef: `SIM-GW-${Date.now()}`,
+    simulatedPaymentRef: `SIM-GW-${uid()}`,
     trackingCode: `TRK-${state.settings.documentNumberPrefixYear}-${state.b2cOrders.length + 101}`,
     referralAgentId: safeReferralAgentId,
     sourceChannel: input.sourceChannel ?? 'direct_web',
@@ -1837,7 +2180,7 @@ export function createB2cOrderWithSimulatedPayment(
       inventoryTransactions: [
         ...state.inventoryTransactions,
         {
-          id: `inv-tx-b2c-${Date.now()}`,
+          id: `inv-tx-b2c-${uid()}`,
           productId: product.id,
           movementType: 'b2c_reservation',
           fromLocationType: 'warehouse',
@@ -1854,7 +2197,7 @@ export function createB2cOrderWithSimulatedPayment(
       ],
       journalEntries: [
         {
-          id: `je-b2c-${Date.now()}`,
+          id: `je-b2c-${uid()}`,
           entryNumber: `JE-${state.settings.documentNumberPrefixYear}-${state.journalEntries.length + 300}`,
           entryDate: now,
           description: `دریافت وجه سفارش مستقیم B2C (${ordNum}) — درگاه آزمایشی`,
@@ -1882,7 +2225,7 @@ export function updateB2cOrderFulfillment(
 ): SaberCommerceState {
   const order = state.b2cOrders.find((o) => o.id === input.orderId);
   if (!order) throw new Error('سفارش یافت نشد.');
-  const now = new Date().toISOString();
+  const now = nowIso();
 
   return {
     ...state,
@@ -1906,90 +2249,16 @@ export function updateB2cOrderFulfillment(
 }
 
 // 9. Role-Based Data Scoping (Part 43 & Acceptance Tests 64–66)
-export function getScopedStateForRole(
-  state: SaberCommerceState,
-  role: UserRole,
-  entityId: string
-): SaberCommerceState {
-  if (role === 'admin') {
-    return state;
-  }
-
-  if (role === 'agent') {
-    const myRetailers = state.retailers.filter((r) => r.agentId === entityId);
-    const myRetailerIds = new Set(myRetailers.map((r) => r.id));
-
-    return {
-      ...state,
-      agents: state.agents.filter((a) => a.id === entityId),
-      retailers: myRetailers,
-      documents: state.documents.filter(
-        (d) => d.agentId === entityId || (d.retailerId && myRetailerIds.has(d.retailerId))
-      ),
-      consignmentDeliveries: state.consignmentDeliveries.filter(
-        (d) => d.agentId === entityId
-      ),
-      salesReports: state.salesReports.filter((r) => r.agentId === entityId),
-      invoices: state.invoices.filter((i) => i.agentId === entityId),
-      payments: state.payments.filter(
-        (p) =>
-          p.salesAttributionAgentId === entityId ||
-          p.collectingAgentId === entityId ||
-          myRetailerIds.has(p.retailerId)
-      ),
-      agentCashCollections: state.agentCashCollections.filter(
-        (c) => c.agentId === entityId
-      ),
-      agentRemittances: state.agentRemittances.filter((r) => r.agentId === entityId),
-      commissions: state.commissions.filter((c) => c.agentId === entityId),
-      commissionPayments: state.commissionPayments.filter(
-        (cp) => cp.agentId === entityId
-      ),
-      visits: state.visits.filter((v) => v.agentId === entityId),
-      restockRequests: state.restockRequests.filter((r) => r.agentId === entityId),
-    };
-  }
-
-  if (role === 'retailer') {
-    return {
-      ...state,
-      retailers: state.retailers.filter((r) => r.id === entityId),
-      documents: state.documents.filter((d) => d.retailerId === entityId),
-      consignmentDeliveries: state.consignmentDeliveries.filter(
-        (d) => d.retailerId === entityId
-      ),
-      salesReports: state.salesReports.filter((r) => r.retailerId === entityId),
-      invoices: state.invoices.filter((i) => i.retailerId === entityId),
-      payments: state.payments.filter((p) => p.retailerId === entityId),
-      visits: state.visits.filter((v) => v.retailerId === entityId),
-      restockRequests: state.restockRequests.filter((r) => r.retailerId === entityId),
-      commissions: [],
-      commissionPayments: [],
-    };
-  }
-
-  // Customer role: only sees active products and their own orders
-  return {
-    ...state,
-    agents: [],
-    retailers: [],
-    documents: [],
-    consignmentDeliveries: [],
-    salesReports: [],
-    invoices: [],
-    payments: [],
-    commissions: [],
-    commissionPayments: [],
-    b2cOrders: state.b2cOrders.filter(
-      (o) => o.customerId === entityId || o.orderNumber === entityId
-    ),
-  };
-}
+export { getScopedStateForRole } from './scope.ts';
 
 export function updateBusinessSettings(
   state: SaberCommerceState,
-  partialSettings: Partial<BusinessSettings>
+  rawSettings: Partial<BusinessSettings>
 ): SaberCommerceState {
+  // only known setting keys are accepted (a client must not be able to add arbitrary fields to the ledger)
+  const partialSettings = Object.fromEntries(
+    Object.entries(rawSettings).filter(([k, v]) => k in state.settings && k !== 'declarationVersion' && typeof v === typeof (state.settings as unknown as Record<string, unknown>)[k])
+  ) as Partial<BusinessSettings>;
   return {
     ...state,
     version: state.version + 1,
@@ -2003,4 +2272,186 @@ export function updateBusinessSettings(
           : state.settings.declarationVersion,
     },
   };
+}
+
+
+// ---------------------------------------------------------------------------
+// Added 2026-10-31: forms that v0 only listed (F-011) and workflow steps the spec requires
+// ---------------------------------------------------------------------------
+
+export function approveRetailer(state: SaberCommerceState, input: { retailerId: string; approve: boolean; reason?: string }): SaberCommerceState {
+  const r = state.retailers.find((x) => x.id === input.retailerId);
+  if (!r) throw new Error('فروشگاه یافت نشد.');
+  if (r.status !== 'pending') throw new Error('فقط فروشگاه در وضعیت «در انتظار تأیید» قابل بررسی است.');
+  if (!input.approve && !(input.reason ?? '').trim()) throw new Error('دلیل رد الزامی است.');
+  const now = nowIso();
+  return {
+    ...state,
+    version: state.version + 1,
+    retailers: state.retailers.map((x) =>
+      x.id === r.id
+        ? input.approve
+          ? { ...x, status: 'active' as const, approvedDate: now, approvedBy: actor().name }
+          : { ...x, status: 'inactive' as const, notes: `${x.notes} | رد: ${(input.reason ?? '').trim()}` }
+        : x
+    ),
+    auditLogs: [
+      { id: `aud-${uid()}`, actorRole: actor().role, actorName: actor().name, action: input.approve ? 'APPROVE_RETAILER' : 'REJECT_RETAILER', entityType: 'Retailer', entityId: r.id, details: `${r.storeName}`, timestamp: now },
+      ...state.auditLogs,
+    ],
+  };
+}
+
+export function submitRestockRequest(
+  state: SaberCommerceState,
+  input: { retailerId: string; productId: string; requestedQuantity: number; reason?: string; urgency?: 'normal' | 'high' | 'critical'; preferredDeliveryDate?: string; requestedByRole?: 'retailer' | 'agent' }
+): SaberCommerceState {
+  const retailer = state.retailers.find((r) => r.id === input.retailerId);
+  if (!retailer) throw new Error('فروشگاه یافت نشد.');
+  if (!Number.isInteger(input.requestedQuantity) || input.requestedQuantity <= 0) throw new Error('تعداد درخواستی باید یک عدد صحیح مثبت باشد.');
+  const inv = computeInventorySummary(state, input.productId);
+  const stock = inv.retailerCustodyByRetailer[retailer.id] ?? 0;
+  const now = nowIso();
+  return {
+    ...state,
+    version: state.version + 1,
+    restockRequests: [
+      {
+        id: `req-${uid()}`,
+        requestNumber: `REQ-${state.settings.documentNumberPrefixYear}-${String(state.restockRequests.length + 1).padStart(5, '0')}`,
+        retailerId: retailer.id,
+        requestedByRole: input.requestedByRole ?? 'retailer',
+        agentId: retailer.agentId,
+        productId: input.productId,
+        currentEstimatedStock: stock,
+        requestedQuantity: input.requestedQuantity,
+        reason: input.reason?.trim() || 'درخواست شارژ مجدد',
+        urgency: input.urgency ?? (stock <= 2 ? 'critical' : 'normal'),
+        preferredDeliveryDate: input.preferredDeliveryDate ?? new Date(nowMs() + 2 * 86400000).toISOString(),
+        status: 'submitted',
+        createdAt: now,
+        notes: input.reason?.trim() ?? '',
+      },
+      ...state.restockRequests,
+    ],
+  };
+}
+
+export function recordExpense(
+  state: SaberCommerceState,
+  input: { title: string; amount: number; category: OperatingExpense['category']; paidFromAccount: string; referenceNumber?: string; notes?: string }
+): SaberCommerceState {
+  if (!input.title.trim()) throw new Error('شرح هزینه الزامی است.');
+  if (!Number.isFinite(input.amount) || input.amount <= 0) throw new Error('مبلغ هزینه باید بیشتر از صفر باشد.');
+  const now = nowIso();
+  const n = state.expenses.length + 1;
+  const amount = Math.round(input.amount);
+  return {
+    ...state,
+    version: state.version + 1,
+    expenses: [
+      { id: `exp-${uid()}`, expenseNumber: `EXP-${state.settings.documentNumberPrefixYear}-${String(n).padStart(5, '0')}`, category: input.category, title: input.title.trim(), amount, expenseDate: now, paidFromAccount: input.paidFromAccount.trim() || 'حساب بانکی مدیریت', referenceNumber: input.referenceNumber?.trim() || `EXP-REF-${uid()}`, recordedBy: actor().name, notes: input.notes ?? '' },
+      ...state.expenses,
+    ],
+    journalEntries: [
+      { id: `je-exp-${uid()}`, entryNumber: `JE-${state.settings.documentNumberPrefixYear}-${state.journalEntries.length + 400}`, entryDate: now, description: `هزینه عملیاتی: ${input.title.trim()}`, referenceType: 'expense', referenceId: `exp-${n}`, debitAccount: `هزینه — ${input.category}`, creditAccount: input.paidFromAccount.trim() || 'حساب بانکی مدیریت', amount },
+      ...state.journalEntries,
+    ],
+  };
+}
+
+/** Form 38: movements between the business bank account and the cash box that are not sales or expenses. */
+export function recordCashBankTransaction(
+  state: SaberCommerceState,
+  input: { kind: CashBankTransaction['kind']; amount: number; account: string; referenceNumber?: string; notes?: string }
+): SaberCommerceState {
+  if (!Number.isFinite(input.amount) || input.amount <= 0) throw new Error('مبلغ باید بیشتر از صفر باشد.');
+  const now = nowIso();
+  const amount = Math.round(input.amount);
+  const n = state.cashBankTransactions.length + 1;
+  const [debit, credit] =
+    input.kind === 'bank_deposit' ? ['موجودی بانک مدیریت (تاییدشده)', 'سرمایه / واریز متفرقه']
+    : input.kind === 'bank_withdrawal' ? ['برداشت متفرقه', 'موجودی بانک مدیریت (تاییدشده)']
+    : input.kind === 'cash_to_bank' ? ['موجودی بانک مدیریت (تاییدشده)', 'صندوق نقد مدیریت']
+    : ['صندوق نقد مدیریت', 'موجودی بانک مدیریت (تاییدشده)'];
+  return {
+    ...state,
+    version: state.version + 1,
+    cashBankTransactions: [
+      { id: `cbt-${uid()}`, number: `CBT-${state.settings.documentNumberPrefixYear}-${String(n).padStart(5, '0')}`, kind: input.kind, amount, date: now, account: input.account.trim() || 'حساب بانکی مدیریت', referenceNumber: input.referenceNumber?.trim() || '', recordedBy: actor().name, notes: input.notes ?? '' },
+      ...state.cashBankTransactions,
+    ],
+    journalEntries: [
+      { id: `je-cbt-${uid()}`, entryNumber: `JE-${state.settings.documentNumberPrefixYear}-${state.journalEntries.length + 500}`, entryDate: now, description: `تراکنش نقد/بانک (${input.kind})`, referenceType: 'adjustment', referenceId: `cbt-${n}`, debitAccount: debit, creditAccount: credit, amount },
+      ...state.journalEntries,
+    ],
+  };
+}
+
+/** Form 39: credit note / debit note / write-off against a retailer receivable, always with a reason and an approver. */
+export function recordFinancialAdjustment(
+  state: SaberCommerceState,
+  input: { retailerId: string; kind: FinancialAdjustment['kind']; amount: number; reason: string }
+): SaberCommerceState {
+  const retailer = state.retailers.find((r) => r.id === input.retailerId);
+  if (!retailer) throw new Error('فروشگاه یافت نشد.');
+  if (!input.reason.trim()) throw new Error('دلیل تعدیل مالی الزامی است.');
+  const amount = Math.round(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('مبلغ باید بیشتر از صفر باشد.');
+  const now = nowIso();
+  let invoices = state.invoices;
+  if (input.kind === 'credit_note' || input.kind === 'write_off') {
+    let remaining = amount;
+    const open = [...state.invoices].filter((i) => i.retailerId === retailer.id && i.remainingAmount > 0 && i.status !== 'reversed').sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const outstanding = open.reduce((s, i) => s + i.remainingAmount, 0);
+    if (amount > outstanding) throw new Error(`مبلغ تعدیل (${amount}) بیشتر از مانده بدهی فروشگاه (${outstanding}) است.`);
+    const reduce = new Map<string, number>();
+    for (const i of open) {
+      if (remaining <= 0) break;
+      const take = Math.min(i.remainingAmount, remaining);
+      reduce.set(i.id, take);
+      remaining -= take;
+    }
+    invoices = state.invoices.map((i) => {
+      const take = reduce.get(i.id);
+      if (!take) return i;
+      const rem = i.remainingAmount - take;
+      return { ...i, remainingAmount: rem, totalAmount: i.totalAmount - take, status: (rem === 0 ? 'paid' : 'partially_paid') as 'paid' | 'partially_paid' };
+    });
+  } else {
+    // debit note: new receivable line
+    invoices = [
+      { id: `inv-${uid()}`, invoiceNumber: `INV-${state.settings.documentNumberPrefixYear}-${String(state.invoices.length + 1).padStart(5, '0')}`, retailerId: retailer.id, agentId: retailer.agentId, productId: state.products[0]?.id ?? '', quantity: 0, unitPriceSnapshot: 0, totalAmount: amount, paidAmount: 0, remainingAmount: amount, dueDate: new Date(nowMs() + retailer.settlementIntervalDays * 86400000).toISOString(), isOverdue: false, status: 'open', createdAt: now },
+      ...state.invoices,
+    ];
+  }
+  const n = state.financialAdjustments.length + 1;
+  return {
+    ...state,
+    version: state.version + 1,
+    invoices,
+    financialAdjustments: [
+      { id: `fadj-${uid()}`, number: `ADJ-${state.settings.documentNumberPrefixYear}-${String(n).padStart(5, '0')}`, retailerId: retailer.id, kind: input.kind, amount, reason: input.reason.trim(), approvedBy: actor().name, createdAt: now },
+      ...state.financialAdjustments,
+    ],
+    journalEntries: [
+      { id: `je-adj-${uid()}`, entryNumber: `JE-${state.settings.documentNumberPrefixYear}-${state.journalEntries.length + 600}`, entryDate: now, description: `تعدیل مالی (${input.kind}) ${retailer.storeName}: ${input.reason.trim()}`, referenceType: 'adjustment', referenceId: `fadj-${n}`, debitAccount: input.kind === 'debit_note' ? `حساب‌های دریافتنی فروشگاهی — ${retailer.storeName}` : 'تخفیفات و ضایعات فروش', creditAccount: input.kind === 'debit_note' ? 'سایر درآمدها' : `حساب‌های دریافتنی فروشگاهی — ${retailer.storeName}`, amount },
+      ...state.journalEntries,
+    ],
+  };
+}
+
+export function markNotificationsRead(state: SaberCommerceState, input: { ids?: string[] }): SaberCommerceState {
+  const all = !input.ids;
+  const set = new Set(input.ids ?? []);
+  return { ...state, notifications: state.notifications.map((n) => (all || set.has(n.id) ? { ...n, isRead: true } : n)) };
+}
+
+/** Fills collections added after a state was first stored and re-derives time-dependent flags. */
+export function normalizeState(state: SaberCommerceState): SaberCommerceState {
+  return refreshOverdueFlags({
+    ...state,
+    cashBankTransactions: state.cashBankTransactions ?? [],
+    financialAdjustments: state.financialAdjustments ?? [],
+  });
 }

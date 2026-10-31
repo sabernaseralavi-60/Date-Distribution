@@ -13,34 +13,38 @@ import {
   PackageCheck,
   AlertCircle,
 } from 'lucide-react';
-import { SaberCommerceState, B2cOrder } from '../core/types';
-import {
-  computeInventorySummary,
-  createB2cOrderWithSimulatedPayment,
-  createRetailer,
-} from '../core/engine';
-import { formatPersianNumber, formatToman, toJalaliDateString } from '../core/formatters';
-import { QrCodeSvg } from './QrCodeSvg';
+import { SaberCommerceState } from '../core/types.ts';
+import { computeInventorySummary } from '../core/engine.ts';
+import { api, newKey, type PublicCatalog, type PublicOrder } from '../api.ts';
+import { formatPersianNumber, formatToman, toJalaliDateString } from '../core/formatters.ts';
+import { QrCodeSvg } from './QrCodeSvg.tsx';
 
 interface CustomerStorefrontViewProps {
-  state: SaberCommerceState;
+  catalog: PublicCatalog;
   referralAgentCode: string | null;
-  onClearReferral: () => void;
-  onSelectReferralCode: (code: string | null) => void;
-  onUpdateState: (nextState: SaberCommerceState, message?: string) => void;
 }
 
-export const CustomerStorefrontView: React.FC<CustomerStorefrontViewProps> = ({
-  state,
-  referralAgentCode,
-  onClearReferral,
-  onSelectReferralCode,
-  onUpdateState,
-}) => {
+/** The storefront only ever receives the public catalogue; it is turned into the minimal shape this view was written for. */
+function catalogToState(c: PublicCatalog): SaberCommerceState {
+  const products = c.products.map((p) => ({
+    id: p.id, sku: p.sku, slug: p.slug, name: p.name, brand: p.brand, category: p.category, packaging: p.packaging, netWeightGrams: p.netWeightGrams, unit: 'بسته',
+    description: p.description, costPrice: 0, baseRetailerPrice: p.baseRetailerPrice, retailerMarkupPercent: p.retailerMarkupPercent, suggestedRetailPrice: p.suggestedRetailPrice, directB2cPrice: p.directB2cPrice, priceEffectiveDate: '', minStockAlert: 0, barcode: '', isActive: true, createdAt: '', updatedAt: '',
+  }));
+  const stock = products.length ? [{ id: 'public-stock', productId: products[0].id, movementType: 'initial_stock', fromLocationType: 'external', fromLocationId: 'public', toLocationType: 'warehouse', toLocationId: 'main', quantity: c.products[0]?.available ?? 0, unitPriceSnapshot: 0, createdAt: '', createdBy: '', notes: '' }] : [];
+  return {
+    version: 0,
+    settings: { ...({} as SaberCommerceState['settings']), ...c.business, defaultRetailerDeliveryMode: 'consignment' },
+    products, agents: c.agents.map((a) => ({ id: a.id, code: a.code, fullName: a.fullName })) as unknown as SaberCommerceState['agents'],
+    inventoryTransactions: stock, b2cOrders: [], retailers: [],
+  } as unknown as SaberCommerceState;
+}
+
+export const CustomerStorefrontView: React.FC<CustomerStorefrontViewProps> = ({ catalog, referralAgentCode }) => {
+  const state = React.useMemo(() => catalogToState(catalog), [catalog]);
   const product = state.products[0];
   const inv = computeInventorySummary(state, product.id);
   const referralAgent = referralAgentCode
-    ? state.agents.find((a) => a.code === referralAgentCode)
+    ? state.agents.find((a) => a.code.toLowerCase() === referralAgentCode.toLowerCase())
     : undefined;
 
   const [activePathway, setActivePathway] = useState<
@@ -56,20 +60,27 @@ export const CustomerStorefrontView: React.FC<CustomerStorefrontViewProps> = ({
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [quantity, setQuantity] = useState<number>(2);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const [completedOrder, setCompletedOrder] = useState<B2cOrder | null>(null);
+  const [completedOrder, setCompletedOrder] = useState<(PublicOrder & { customerName: string }) | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [attemptKey, setAttemptKey] = useState(newKey());
 
   // B2B Store Partnership Form State
   const [storeName, setStoreName] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [storeMobile, setStoreMobile] = useState('');
-  const [storeDistrict, setStoreDistrict] = useState('سعادت‌آباد');
+  const [storeDistrict, setStoreDistrict] = useState('');
+  const [storeProvince, setStoreProvince] = useState('تهران');
+  const [storeCity, setStoreCity] = useState('تهران');
   const [storeAddress, setStoreAddress] = useState('');
-  const [storePostalCode, setStorePostalCode] = useState('1998765432');
+  const [storePostalCode, setStorePostalCode] = useState('');
   const [b2bSuccessMsg, setB2bSuccessMsg] = useState<string | null>(null);
   const [b2bError, setB2bError] = useState<string | null>(null);
 
   // Order Tracking State
-  const [trackingQuery, setTrackingQuery] = useState('ORD-1405-00001');
+  const [trackNumber, setTrackNumber] = useState('');
+  const [trackMobile, setTrackMobile] = useState('');
+  const [tracked, setTracked] = useState<PublicOrder | null>(null);
+  const [trackError, setTrackError] = useState<string | null>(null);
 
   const unitPrice = product.campaignPrice ?? product.directB2cPrice;
   const subtotal = unitPrice * quantity;
@@ -77,71 +88,56 @@ export const CustomerStorefrontView: React.FC<CustomerStorefrontViewProps> = ({
     subtotal >= state.settings.freeShippingThreshold ? 0 : state.settings.defaultShippingFee;
   const totalPayable = subtotal + shippingFee;
 
-  const handleB2cCheckout = (e: React.FormEvent) => {
+  const handleB2cCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     setCheckoutError(null);
+    setSubmitting(true);
     try {
-      const { nextState, createdOrder } = createB2cOrderWithSimulatedPayment(state, {
-        customerName,
-        customerMobile,
-        province,
-        city,
-        deliveryAddress,
-        postalCode,
-        productId: product.id,
-        quantity,
-        sourceChannel: referralAgent ? 'agent_referral' : 'qr_packaging',
-        referralAgentId: referralAgent?.id,
+      const r = await api.publicOrder({
+        customerName, customerMobile, province, city, deliveryAddress, postalCode, productId: product.id, quantity,
+        referralCode: referralAgent?.code, source: referralAgent ? 'agent_referral' : 'qr_packaging', idempotencyKey: attemptKey,
       });
-      setCompletedOrder(createdOrder);
-      onUpdateState(
-        nextState,
-        `سفارش آنلاین ${createdOrder.orderNumber} با موفقیت پرداخت و از موجودی انبار مرکزی کسر شد.`
-      );
+      setCompletedOrder({ ...r.order, customerName });
+      setAttemptKey(newKey());
     } catch (err: any) {
       setCheckoutError(err?.message || 'خطا در ثبت سفارش آنلاین');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleB2bSubmit = (e: React.FormEvent) => {
+  const handleB2bSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setB2bError(null);
     setB2bSuccessMsg(null);
+    setSubmitting(true);
     try {
-      const assignedAgentId = referralAgent?.id || state.agents[0].id;
-      const nextState = createRetailer(state, {
-        storeName,
-        ownerName,
-        mobile: storeMobile,
-        address: storeAddress,
-        province: 'تهران',
-        city: 'تهران',
-        district: storeDistrict,
-        postalCode: storePostalCode,
-        agentId: assignedAgentId,
-        acquisitionAgentId: referralAgent?.id || assignedAgentId,
-        notes: referralAgent
-          ? `ثبت‌شده از طریق لینک معرف بازاریاب (${referralAgent.code})`
-          : 'ثبت‌شده از طریق اسکن QR بسته‌بندی محصول (/p/piarom-600)',
+      const r = await api.retailerRequest({
+        storeName, ownerName, mobile: storeMobile, address: storeAddress, province: storeProvince, city: storeCity, district: storeDistrict,
+        postalCode: storePostalCode, referralCode: referralAgent?.code,
       });
-      setB2bSuccessMsg(
-        `درخواست همکاری فروشگاهی «${storeName}» با موفقیت ثبت شد و به بازاریاب منطقه جهت تحویل امانی اختصاص یافت.`
-      );
-      onUpdateState(nextState, `فروشگاه جدید «${storeName}» در شبکه توزیع ثبت شد.`);
+      setB2bSuccessMsg(r.message);
       setStoreName('');
       setOwnerName('');
       setStoreMobile('');
       setStoreAddress('');
     } catch (err: any) {
       setB2bError(err?.message || 'خطا در ثبت درخواست همکاری فروشگاهی');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const trackedOrders = state.b2cOrders.filter(
-    (o) =>
-      o.orderNumber.toLowerCase().includes(trackingQuery.trim().toLowerCase()) ||
-      o.customerMobile.includes(trackingQuery.trim())
-  );
+  const handleTrack = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTrackError(null);
+    setTracked(null);
+    try {
+      setTracked((await api.trackOrder(trackNumber.trim(), trackMobile.trim())).order);
+    } catch (err: any) {
+      setTrackError(err?.message || 'سفارش پیدا نشد.');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -175,24 +171,6 @@ export const CustomerStorefrontView: React.FC<CustomerStorefrontViewProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-          <label className="text-xs text-stone-600 font-medium">شبیه‌سازی کانال ورود:</label>
-          <select
-            aria-label="کانال ورود مشتری"
-            value={referralAgentCode || ''}
-            onChange={(e) =>
-              e.target.value ? onSelectReferralCode(e.target.value) : onClearReferral()
-            }
-            className="text-xs bg-stone-50 border border-stone-300 rounded-xl px-3 py-1.5 font-medium w-full sm:w-auto max-w-full truncate"
-          >
-            <option value="">اسکن QR عمومی روی بسته‌بندی (/p/piarom-600)</option>
-            {state.agents.map((ag) => (
-              <option key={ag.id} value={ag.code}>
-                لینک اختصاصی معرفی بازاریاب (/ref/{ag.code} — {ag.fullName})
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
 
       {/* Sub-navigation between QR Landing, B2C Checkout, B2B Onboarding, Order Tracking */}
@@ -412,11 +390,11 @@ export const CustomerStorefrontView: React.FC<CustomerStorefrontViewProps> = ({
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <h2 className="text-xl font-extrabold text-stone-900">
-                سفارش شما با موفقیت ثبت و پرداخت شد
+                سفارش شما ثبت شد (پرداخت آزمایشی)
               </h2>
               <p className="text-xs text-stone-600 max-w-md mx-auto">
-                موجودی سفارش شما به صورت خودکار از انبار مرکزی رزرو و کسر گردید و سند مالی آن در دفتر
-                روزنامه ثبت شد.
+                درگاه پرداخت این نسخه شبیه‌سازی است و پولی دریافت نشده است. شمارهٔ سفارش و موبایل خود را برای
+                پیگیری نگه دارید.
               </p>
               <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 max-w-md mx-auto text-right text-xs space-y-2">
                 <div className="flex justify-between">
@@ -442,15 +420,16 @@ export const CustomerStorefrontView: React.FC<CustomerStorefrontViewProps> = ({
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-stone-500">کد رهگیری مرسوله:</span>
-                  <span className="font-mono font-semibold">{completedOrder.trackingCode}</span>
+                  <span className="text-stone-500">پرداخت:</span>
+                  <span className="font-semibold text-amber-800">آزمایشی (شبیه‌سازی‌شده) - {completedOrder.simulatedPaymentRef}</span>
                 </div>
               </div>
               <div className="pt-2 flex justify-center gap-3">
                 <button
                   type="button"
                   onClick={() => {
-                    setTrackingQuery(completedOrder.orderNumber);
+                    setTrackNumber(completedOrder.orderNumber);
+                    setTrackMobile(customerMobile);
                     setCompletedOrder(null);
                     setActivePathway('track_order');
                   }}
@@ -677,6 +656,14 @@ export const CustomerStorefrontView: React.FC<CustomerStorefrontViewProps> = ({
                   className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5"
                 />
               </div>
+              <div>
+                <label className="block font-bold text-stone-700 mb-1">استان *</label>
+                <input type="text" required value={storeProvince} onChange={(e) => setStoreProvince(e.target.value)} className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5" />
+              </div>
+              <div>
+                <label className="block font-bold text-stone-700 mb-1">شهر *</label>
+                <input type="text" required value={storeCity} onChange={(e) => setStoreCity(e.target.value)} className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5" />
+              </div>
               <div className="sm:col-span-2">
                 <label className="block font-bold text-stone-700 mb-1">نشانی کامل فروشگاه *</label>
                 <input
@@ -692,6 +679,7 @@ export const CustomerStorefrontView: React.FC<CustomerStorefrontViewProps> = ({
 
             <button
               type="submit"
+              disabled={submitting}
               className="w-full py-3.5 rounded-2xl bg-stone-900 text-white hover:bg-stone-800 font-extrabold text-sm transition"
             >
               ثبت درخواست همکاری فروشگاهی (B2B)
@@ -700,61 +688,33 @@ export const CustomerStorefrontView: React.FC<CustomerStorefrontViewProps> = ({
         </div>
       )}
 
-      {/* View 4: Customer Order Tracking */}
+      {/* View 4: Customer Order Tracking (order number + the mobile used for the order) */}
       {activePathway === 'track_order' && (
-        <div className="bg-white border border-stone-200/80 rounded-3xl p-6 shadow-xs space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-extrabold text-stone-900">
-                رهگیری سفارش‌های آنلاین مشتریان (B2C)
-              </h2>
-              <p className="text-xs text-stone-500">
-                جستجو بر اساس شماره سفارش (مثال: ORD-1405-00001) یا شماره موبایل خریدار
-              </p>
-            </div>
-            <div className="relative w-full sm:w-72">
-              <Search className="w-4 h-4 text-stone-400 absolute right-3 top-2.5" />
-              <input
-                type="text"
-                value={trackingQuery}
-                onChange={(e) => setTrackingQuery(e.target.value)}
-                placeholder="شماره سفارش یا موبایل..."
-                className="w-full border border-stone-300 rounded-xl pr-9 pl-3 py-2 text-xs tabular-nums"
-              />
-            </div>
+        <div className="bg-white border border-stone-200/80 rounded-3xl p-6 shadow-xs space-y-5 max-w-3xl mx-auto">
+          <div>
+            <h2 className="text-base font-extrabold text-stone-900">پیگیری سفارش آنلاین</h2>
+            <p className="text-xs text-stone-500">شمارهٔ سفارش و موبایلی که با آن سفارش داده‌اید را وارد کنید.</p>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {trackedOrders.slice(0, 8).map((ord) => (
-              <div
-                key={ord.id}
-                className="border border-stone-200 rounded-2xl p-4 bg-stone-50/50 space-y-2 text-xs"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono font-bold text-stone-900">{ord.orderNumber}</span>
-                  <span className="px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold">
-                    {ord.orderStatus === 'delivered'
-                      ? 'تحویل‌شده به مشتری'
-                      : ord.orderStatus === 'shipped'
-                      ? 'تحویل پست / پیک شده'
-                      : 'پرداخت‌شده — در حال آماده‌سازی'}
-                  </span>
-                </div>
-                <div className="text-stone-700 font-semibold">
-                  خریدار: {ord.customerName} (<span className="tabular-nums">{ord.customerMobile}</span>)
-                </div>
-                <div className="text-stone-500">
-                  آدرس: {ord.province}، {ord.city} — {ord.deliveryAddress}
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t border-stone-200/80">
-                  <span className="tabular-nums font-bold">
-                    {formatPersianNumber(ord.quantity)} بسته | {formatToman(ord.totalPayable)}
-                  </span>
-                  <span className="font-mono text-stone-500">رهگیری: {ord.trackingCode}</span>
-                </div>
+          <form onSubmit={handleTrack} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+            <input required value={trackNumber} onChange={(e) => setTrackNumber(e.target.value)} placeholder="شمارهٔ سفارش" className="border border-stone-300 rounded-xl px-3 py-2 text-xs font-mono" dir="ltr" />
+            <input required value={trackMobile} onChange={(e) => setTrackMobile(e.target.value)} placeholder="موبایل (09...)" className="border border-stone-300 rounded-xl px-3 py-2 text-xs font-mono" dir="ltr" />
+            <button type="submit" className="rounded-xl bg-stone-900 text-white text-xs font-bold px-4 py-2.5">پیگیری</button>
+          </form>
+          {trackError && <div className="rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-semibold px-3 py-2">{trackError}</div>}
+          {tracked && (
+            <div className="border border-stone-200 rounded-2xl p-4 bg-stone-50/50 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-mono font-bold text-stone-900">{tracked.orderNumber}</span>
+                <span className="px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold">
+                  {tracked.orderStatus === 'delivered' ? 'تحویل‌شده به مشتری' : tracked.orderStatus === 'shipped' ? 'تحویل پست / پیک شده' : 'ثبت‌شده — در حال آماده‌سازی'}
+                </span>
               </div>
-            ))}
-          </div>
+              <div className="flex items-center justify-between pt-2 border-t border-stone-200/80">
+                <span className="tabular-nums font-bold">{formatPersianNumber(tracked.quantity)} بسته | {formatToman(tracked.totalPayable)}</span>
+                <span className="font-mono text-stone-500">{tracked.trackingCode ? `رهگیری: ${tracked.trackingCode}` : 'کد رهگیری پس از ارسال درج می‌شود'}</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

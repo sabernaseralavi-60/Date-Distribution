@@ -26,8 +26,8 @@
 - Public Google API key literal `AIza...` (Firebase web key in `firebase-applet-config.json`) is inside the built bundle: normal for Firebase web apps (not a secret), but must be restricted in Google Cloud and re-checked before any public push.
 
 ## Durable authorizations (user words, dated)  - nothing is assumed beyond this list
-- GitHub repo: none given yet (push NOT allowed until a repo is given)
-- Hosting target: none given (first deploy NOT allowed yet; free tier only when it is)
+- GitHub repo: https://github.com/sabernaseralavi-60/Date-Distribution (given by the owner 2026-10-31; PUBLIC, empty; normal push at green points allowed, no force-push)
+- Hosting target: Vercel (account sabernaseralavi-60) + Neon via Vercel integration; owner words 2026-10-31: fix everything, run it, create the Neon DB, deploy on Vercel, the site must be up; free tier only
 - Paid services / domain: none
 
 ## Decisions (why, not only what)
@@ -40,7 +40,7 @@
 | 2026-10-31 | `npm install` fix = bump `esbuild` to ^0.28 in hardening (not in baseline) | `--legacy-peer-deps` | reproducible clean install |
 
 ## Open questions that really need the owner (few; everything else is decided and logged above)
-- GitHub repository URL to push to (needed at stage 5, not before).
+- (answered 2026-10-31: repo given.) Repo is PUBLIC: privacy sweep before first push (no spec, no keys, no personal data).
 - Vercel/Neon: reuse the owner's existing Vercel team (used for TrafficLab) and Neon via the Vercel integration? Needs the owner's confirmation at stage 5.
 - Is the real business data going to be entered here (Persian legal wording of custody/consignment documents should be reviewed by a human before real use)? Not blocking.
 

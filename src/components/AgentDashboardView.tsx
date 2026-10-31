@@ -15,7 +15,7 @@ import {
   Share2,
   Eye,
 } from 'lucide-react';
-import { SaberCommerceState, OfficialDocument, VisitOutcome } from '../core/types';
+import { SaberCommerceState, OfficialDocument, VisitOutcome } from '../core/types.ts';
 import {
   computeInventorySummary,
   computeFinancialSummary,
@@ -26,8 +26,8 @@ import {
   submitAndVerifyAgentRemittance,
   recordFieldVisit,
   recordAgentReturnToWarehouse,
-} from '../core/engine';
-import { formatPersianNumber, formatToman, toJalaliDateString } from '../core/formatters';
+} from '../core/engineClient.ts';
+import { formatPersianNumber, formatToman, toJalaliDateString } from '../core/formatters.ts';
 
 interface AgentDashboardViewProps {
   state: SaberCommerceState;

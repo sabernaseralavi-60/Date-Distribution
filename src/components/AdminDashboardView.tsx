@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { SaberCommerceState, OfficialDocument } from '../core/types';
-import { computeInventorySummary, computeFinancialSummary } from '../core/engine';
+import { SaberCommerceState, OfficialDocument } from '../core/types.ts';
+import { computeInventorySummary, computeFinancialSummary } from '../core/engineClient.ts';
 import {
   formatNumberFa,
   formatToman,
   toJalaliDate,
   toPersianDigits,
-} from '../core/formatters';
+} from '../core/formatters.ts';
 import {
   CheckCircle2,
   Printer,

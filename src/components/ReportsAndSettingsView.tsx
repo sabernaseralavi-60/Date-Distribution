@@ -10,14 +10,14 @@ import {
   Filter,
   TrendingUp,
 } from 'lucide-react';
-import { SaberCommerceState, BusinessSettings } from '../core/types';
+import { SaberCommerceState, BusinessSettings } from '../core/types.ts';
 import {
   computeInventorySummary,
   computeFinancialSummary,
   updateBusinessSettings,
   updateProductPricing,
-} from '../core/engine';
-import { formatPersianNumber, formatToman, toJalaliDateString } from '../core/formatters';
+} from '../core/engineClient.ts';
+import { formatPersianNumber, formatToman, toJalaliDateString } from '../core/formatters.ts';
 
 interface ReportsAndSettingsViewProps {
   state: SaberCommerceState;
